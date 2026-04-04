@@ -15,6 +15,7 @@ Use `/summon` whenever you are starting a new piece of work.
 - Choose **Talk about it** if the idea is still fuzzy
 
 If you choose **Plan**, `/summon` will:
+- automatically use `corvalis-recon` when the binary is installed in `~/.claude/bin/`
 - write the plan to `docs/plans/`
 - run the standards gate against relevant `auto-*` skills
 - optionally run refinement gates like Swarm, Skill Gate, and Triumvirate
@@ -87,6 +88,8 @@ chmod +x install.sh
 
 The script symlinks each skill directory into `~/.claude/skills/`. Existing skills with the same name are backed up to `~/.claude/skills-backup-<timestamp>/`.
 
+It also attempts to install or upgrade `corvalis-recon` into `~/.claude/bin/`. When present, `/summon` will automatically use that binary during the planning path for structured codebase analysis.
+
 ### Claude Code Manual Install
 
 Copy the `skills/` directory contents to your Claude Code skills directory:
@@ -146,6 +149,98 @@ Recommended operating model:
 - Claude Code owns planning and execution: `/summon`, `/stream`, `/dominion`
 - Codex owns the stronger validation lane: `/verify`
 
+## corvalis-recon
+
+`corvalis-recon` is the AST-based structured codebase analysis binary that powers recon-aware planning.
+
+The source for the tool lives in [tools/recon](/Users/architect/Documents/GitHub/corvalis-skills/tools/recon). It is a standalone Rust CLI, not just a summon helper, and it is meant to be useful both inside the Corvalis workflow and directly from the command line when you want fast structural understanding of a codebase.
+
+### What The Tool Is
+
+`corvalis-recon` analyzes supported source trees by parsing them into syntax trees and producing structured output that is easier for planning agents to consume than raw file listing and grep alone.
+
+Its current job is to build a compact map of a codebase by combining:
+- source discovery with ignore awareness
+- parsing and symbol extraction
+- dependency and re-export analysis
+- complexity and hotspot metrics
+- project overview and ranked file summaries
+- budget-aware truncation for large repositories
+
+This makes it useful for:
+- pre-plan repo reconnaissance
+- agent context compression
+- architectural orientation in unfamiliar TS-heavy repos
+- inspecting likely entry points, hotspots, barrels, and dependency shape before implementation
+
+Why AST-based analysis matters:
+- it understands code structure instead of guessing from text alone
+- it can distinguish declarations, exports, imports, and re-exports more reliably than grep-style scanning
+- it produces cleaner summaries for planning, dependency analysis, and hotspot detection in larger repos
+
+### Tech Stack
+
+`corvalis-recon` is implemented as a Rust CLI with a small, focused stack:
+- `clap` for the command-line interface
+- `tree-sitter` with vendored grammars for TypeScript, TSX, JavaScript, and Svelte AST-style parsing
+- `serde` / `serde_json` for machine-readable output
+- `ignore` for `.gitignore`-aware file discovery
+- `rayon` for parallel parsing work
+- `json5` for tolerant config parsing where needed
+
+The current implementation is optimized for TypeScript-heavy repos, which matches the main Corvalis use case today.
+
+It is primarily used by `/summon` during the **Plan** path:
+- if `~/.claude/bin/corvalis-recon` exists, `/summon` attempts to run it automatically
+- for larger repositories, summon can pass `--budget 8000` to keep the output compact
+- if the binary is missing or recon fails, summon silently falls back to normal `Glob` / `Grep` / `Read` exploration
+
+### What It Produces
+
+`corvalis-recon analyze` combines:
+- symbol extraction
+- dependency graph construction
+- complexity metrics and hotspot detection
+- project overview metadata
+- file ranking for budget-aware truncation
+
+This gives planning flows a cleaner map of a TS / JS / Svelte codebase before stream boundaries and execution decisions are made.
+
+### Direct Usage
+
+You can also run recon directly outside `/summon`:
+
+```bash
+~/.claude/bin/corvalis-recon analyze --root /path/to/project
+```
+
+Useful direct applications:
+- inspect the full JSON output for a repo before writing a plan
+- generate a compact budgeted snapshot for large codebases
+- view a human-readable ranked summary with `--format pretty`
+- debug dependency structure, entry points, cycles, and hotspots independently of summon
+
+Examples:
+
+```bash
+~/.claude/bin/corvalis-recon analyze --root /path/to/project --format json
+~/.claude/bin/corvalis-recon analyze --root /path/to/project --format pretty
+~/.claude/bin/corvalis-recon analyze --root /path/to/project --budget 8000
+```
+
+Recommended budget guidance:
+- small repos: no budget
+- medium repos: `--budget 16000`
+- large repos: `--budget 8000`
+- very large repos: `--budget 4000`
+
+Current scope:
+- TypeScript
+- JavaScript
+- Svelte
+
+Rust and other languages can be added later, but today recon is optimized for the TS-heavy workflow Corvalis uses most often.
+
 ## Quick Start
 
 ### Claude Code flow
@@ -154,9 +249,10 @@ Recommended operating model:
 2. Start a new Claude Code session
 3. Run `/summon`
 4. Choose **Plan** — describe what you're building
-5. The system writes a plan, validates it, and recommends next steps
-6. When you are happy with the plan, open Codex and run `/verify`
-7. Return to Claude Code and run `/dominion` to execute the full plan autonomously, or `/stream` to execute one stream at a time
+5. If `corvalis-recon` is installed, summon will automatically use it to gather structured repo context
+6. The system writes a plan, validates it, and recommends next steps
+7. When you are happy with the plan, open Codex and run `/verify`
+8. Return to Claude Code and run `/dominion` to execute the full plan autonomously, or `/stream` to execute one stream at a time
 
 ### Codex flow
 
@@ -168,6 +264,8 @@ Recommended operating model:
 
 ```
   /summon          Session bootstrap — brainstorm, plan, validate
+     │
+     ├──► corvalis-recon   Structured repo analysis when installed
      │
      ├──► /verify        Codex plan refinement before execution
      │
