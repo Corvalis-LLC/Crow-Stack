@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use corvalis_recon::analyze;
-use corvalis_recon::cli::{Cli, Command, OutputFormat};
+use corvalis_recon::cli::{AnalyzeMode, Cli, Command, OutputFormat};
 use corvalis_recon::deps;
 use corvalis_recon::metrics::{self, HotspotThresholds};
 use corvalis_recon::output::Hotspot;
@@ -13,8 +13,11 @@ use corvalis_recon::walk::{self, WalkOptions};
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command.unwrap_or(Command::Analyze { budget: None }) {
-        Command::Analyze { budget } => {
+    match cli.command.unwrap_or(Command::Analyze {
+        budget: None,
+        mode: AnalyzeMode::Full,
+    }) {
+        Command::Analyze { budget, mode } => {
             let walk_options = WalkOptions {
                 include: cli.include,
                 exclude: cli.exclude,
@@ -22,7 +25,13 @@ fn main() -> Result<()> {
             let output = analyze::analyze_project(&cli.root, &walk_options, budget)?;
 
             match cli.format {
-                OutputFormat::Json => print_json(&output.result, &cli.format)?,
+                OutputFormat::Json => match mode {
+                    AnalyzeMode::Full => print_json(&output.result, &cli.format)?,
+                    AnalyzeMode::Planning => {
+                        let planning = analyze::build_planning_result(&output.result);
+                        print_json(&planning, &cli.format)?
+                    }
+                },
                 OutputFormat::Pretty => println!("{}", output.pretty),
             }
         }

@@ -191,7 +191,7 @@ Why AST-based analysis matters:
 The current implementation is optimized for TypeScript-heavy repos, which matches the main Corvalis use case today.
 
 It is primarily used by `/summon` during the **Plan** path:
-- if `~/.claude/bin/corvalis-recon` exists, `/summon` attempts to run it automatically
+- if `~/.claude/bin/corvalis-recon` exists, `/summon` attempts to run it automatically in compact planning mode
 - for larger repositories, summon can pass `--budget 8000` to keep the output compact
 - if the binary is missing or recon fails, summon silently falls back to normal `Glob` / `Grep` / `Read` exploration
 
@@ -206,6 +206,32 @@ It is primarily used by `/summon` during the **Plan** path:
 
 This gives planning flows a cleaner map of a TS / JS / Svelte codebase before stream boundaries and execution decisions are made.
 
+Top-level properties in the default full payload:
+- `version`
+- `project`
+- `files`
+- `graph`
+- `hotspots`
+- `warnings`
+- `summary`
+
+Top-level properties in planning mode (`analyze --mode planning`):
+- `version`
+- `project`
+- `symbols`
+- `dependencies`
+- `graph`
+- `hotspots`
+- `warnings`
+- `summary`
+- `planning`
+
+The `planning` object currently includes:
+- `primary_entry_points`
+- `dependency_hubs`
+- `hotspot_files`
+- `priority_files`
+
 ### Direct Usage
 
 You can also run recon directly outside `/summon`:
@@ -216,6 +242,7 @@ You can also run recon directly outside `/summon`:
 
 Useful direct applications:
 - inspect the full JSON output for a repo before writing a plan
+- generate a compact planning payload with top-level `symbols`, `dependencies`, and curated entry-point / hotspot context
 - generate a compact budgeted snapshot for large codebases
 - view a human-readable ranked summary with `--format pretty`
 - debug dependency structure, entry points, cycles, and hotspots independently of summon
@@ -224,6 +251,7 @@ Examples:
 
 ```bash
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project --format json
+~/.claude/bin/corvalis-recon analyze --root /path/to/project --format json --mode planning
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project --format pretty
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project --budget 8000
 ```

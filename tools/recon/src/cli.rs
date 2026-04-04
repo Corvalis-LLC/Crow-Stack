@@ -36,6 +36,10 @@ pub enum Command {
         /// Approximate output token budget (chars / 4)
         #[arg(long)]
         budget: Option<usize>,
+
+        /// Output profile for the analysis payload
+        #[arg(long, value_enum, default_value = "full")]
+        mode: AnalyzeMode,
     },
 
     /// Extract symbols from specific files or the whole project
@@ -77,6 +81,12 @@ pub enum OutputFormat {
     Pretty,
 }
 
+#[derive(ValueEnum, Clone, Debug, PartialEq, Eq)]
+pub enum AnalyzeMode {
+    Full,
+    Planning,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,7 +99,10 @@ mod tests {
         assert_eq!(cli.format, OutputFormat::Json);
         assert!(matches!(
             cli.command,
-            Some(Command::Analyze { budget: None })
+            Some(Command::Analyze {
+                budget: None,
+                mode: AnalyzeMode::Full
+            })
         ));
     }
 
@@ -106,7 +119,22 @@ mod tests {
         let cli = Cli::parse_from(["corvalis-recon", "analyze", "--budget", "8000"]);
         assert!(matches!(
             cli.command,
-            Some(Command::Analyze { budget: Some(8000) })
+            Some(Command::Analyze {
+                budget: Some(8000),
+                mode: AnalyzeMode::Full
+            })
+        ));
+    }
+
+    #[test]
+    fn parse_analyze_with_planning_mode() {
+        let cli = Cli::parse_from(["corvalis-recon", "analyze", "--mode", "planning"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Analyze {
+                budget: None,
+                mode: AnalyzeMode::Planning
+            })
         ));
     }
 

@@ -32,11 +32,11 @@ Then ask the user which path they want:
 Before brainstorming, attempt to gather structured codebase context via `corvalis-recon`:
 
 1. **Binary check:** Look for `~/.claude/bin/corvalis-recon` (macOS/Linux) or `%USERPROFILE%\.claude\bin\corvalis-recon.exe` (Windows). If not found, skip silently.
-2. **Run:** `timeout 30s ~/.claude/bin/corvalis-recon analyze --root <project_root> --format json`
+2. **Run:** `timeout 30s ~/.claude/bin/corvalis-recon analyze --root <project_root> --format json --mode planning`
    - For large codebases (500+ files expected), add `--budget 8000`
-3. **Validate output:** Check that the JSON parses successfully, has a `version` field, and has a non-empty `files` array.
+3. **Validate output:** Check that the JSON parses successfully, has a `version` field, and has non-empty `planning`, `dependencies`, and `summary` sections.
 4. **On success:** Surface a one-line summary to the user: `"Recon: analyzed X files, Y symbols, Z dependencies"` (from the `summary` field). Feed the recon output into the brainstorming steps below — see `recon/instructions.md` for how to interpret each section.
-5. **On ANY failure** (binary missing, timeout, crash, invalid JSON, empty files array): emit a single-line stderr warning (`"recon: skipped — <reason>"`) and fall back to organic Glob/Grep/Read exploration. **Zero degradation** — the planning flow continues identically without recon.
+5. **On ANY failure** (binary missing, timeout, crash, invalid JSON, empty planning payload): emit a single-line stderr warning (`"recon: skipped — <reason>"`) and fall back to organic Glob/Grep/Read exploration. **Zero degradation** — the planning flow continues identically without recon.
 
 #### Brainstorm
 

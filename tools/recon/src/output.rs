@@ -25,6 +25,52 @@ pub struct AnalysisResult {
     pub summary: Summary,
 }
 
+/// Compact planning-oriented output for the `analyze --mode planning` command.
+#[derive(Debug, Clone, Serialize)]
+pub struct PlanningResult {
+    pub version: String,
+    pub project: ProjectOverview,
+    pub symbols: BTreeMap<String, Vec<Symbol>>,
+    pub dependencies: BTreeMap<String, Vec<Dependency>>,
+    pub graph: DependencyGraph,
+    pub hotspots: Vec<Hotspot>,
+    pub warnings: Vec<Warning>,
+    pub summary: Summary,
+    pub planning: PlanningContext,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PlanningContext {
+    pub primary_entry_points: Vec<String>,
+    pub dependency_hubs: Vec<DependencyHub>,
+    pub hotspot_files: Vec<HotspotFile>,
+    pub priority_files: Vec<PriorityFile>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DependencyHub {
+    pub path: String,
+    pub inbound_dependencies: usize,
+    pub export_count: usize,
+    pub hotspot_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HotspotFile {
+    pub path: String,
+    pub hotspot_count: usize,
+    pub max_complexity: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PriorityFile {
+    pub path: String,
+    pub score: f64,
+    pub is_entry_point: bool,
+    pub symbol_count: usize,
+    pub complexity: u32,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ProjectOverview {
     pub name: String,

@@ -6,7 +6,10 @@ use anyhow::{Context, Result};
 use crate::config::{BUDGET_HEADROOM, CHARS_PER_TOKEN};
 use crate::deps;
 use crate::metrics::{self, HotspotThresholds};
-use crate::output::{AnalysisResult, FileAnalysis, Hotspot, Summary, Symbol};
+use crate::output::{
+    AnalysisResult, Dependency, DependencyHub, FileAnalysis, Hotspot, HotspotFile, PlanningContext,
+    PlanningResult, PriorityFile, Summary, Symbol,
+};
 use crate::overview;
 use crate::parse;
 use crate::ranking;
@@ -19,6 +22,11 @@ pub struct AnalyzeOutput {
     pub result: AnalysisResult,
     pub pretty: String,
 }
+
+const PRIMARY_ENTRY_POINT_LIMIT: usize = 12;
+const DEPENDENCY_HUB_LIMIT: usize = 12;
+const HOTSPOT_FILE_LIMIT: usize = 12;
+const PRIORITY_FILE_LIMIT: usize = 15;
 
 /// Run the full project analysis pipeline used by the `analyze` subcommand.
 pub fn analyze_project(
@@ -87,6 +95,28 @@ pub fn analyze_project(
     let pretty = format_pretty(&result);
 
     Ok(AnalyzeOutput { result, pretty })
+}
+
+/// Build a compact planning-oriented payload from a full analysis result.
+pub fn build_planning_result(result: &AnalysisResult) -> PlanningResult {
+    let ranked = ranking::score_files(&result.files, &result.graph, &result.hotspots);
+    let symbol_map = result
+        .files
+        .iter()
+        .map(|file| (file.path.clone(), file.symbols.clone()))
+        .collect();
+
+    PlanningResult {
+        version: result.version.clone(),
+        project: result.project.clone(),
+        symbols: symbol_map,
+        dependencies: result.graph.adjacency.clone(),
+        graph: result.graph.clone(),
+        hotspots: result.hotspots.clone(),
+        warnings: result.warnings.clone(),
+        summary: result.summary.clone(),
+        planning: build_planning_context(result, &ranked),
+    }
 }
 
 fn build_summary(files: &[FileAnalysis]) -> Summary {
@@ -242,12 +272,113 @@ fn format_pretty(result: &AnalysisResult) -> String {
     lines.join("\n")
 }
 
+fn build_planning_context(
+    result: &AnalysisResult,
+    ranked: &[ranking::FileScore],
+) -> PlanningContext {
+    let hotspot_counts = hotspot_counts(&result.hotspots);
+    let inbound = inbound_dependency_counts(&result.graph.adjacency);
+
+    let primary_entry_points = ranked
+        .iter()
+        .filter(|score| score.is_entry_point)
+        .take(PRIMARY_ENTRY_POINT_LIMIT)
+        .map(|score| score.path.clone())
+        .collect();
+
+    let mut dependency_hubs: Vec<DependencyHub> = result
+        .files
+        .iter()
+        .map(|file| DependencyHub {
+            path: file.path.clone(),
+            inbound_dependencies: *inbound.get(file.path.as_str()).unwrap_or(&0),
+            export_count: file.exports.len(),
+            hotspot_count: hotspot_counts.get(file.path.as_str()).copied().unwrap_or(0),
+        })
+        .filter(|hub| hub.inbound_dependencies > 0)
+        .collect();
+    dependency_hubs.sort_by(|a, b| {
+        b.inbound_dependencies
+            .cmp(&a.inbound_dependencies)
+            .then_with(|| b.hotspot_count.cmp(&a.hotspot_count))
+            .then_with(|| b.export_count.cmp(&a.export_count))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+    dependency_hubs.truncate(DEPENDENCY_HUB_LIMIT);
+
+    let mut hotspot_files: Vec<HotspotFile> = result
+        .files
+        .iter()
+        .filter_map(|file| {
+            let hotspot_count = hotspot_counts.get(file.path.as_str()).copied().unwrap_or(0);
+            if hotspot_count == 0 {
+                return None;
+            }
+
+            Some(HotspotFile {
+                path: file.path.clone(),
+                hotspot_count,
+                max_complexity: file.metrics.cyclomatic_complexity,
+            })
+        })
+        .collect();
+    hotspot_files.sort_by(|a, b| {
+        b.hotspot_count
+            .cmp(&a.hotspot_count)
+            .then_with(|| b.max_complexity.cmp(&a.max_complexity))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+    hotspot_files.truncate(HOTSPOT_FILE_LIMIT);
+
+    let file_map: BTreeMap<&str, &FileAnalysis> = result
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file))
+        .collect();
+
+    let priority_files = ranked
+        .iter()
+        .filter_map(|score| {
+            let file = file_map.get(score.path.as_str())?;
+            Some(PriorityFile {
+                path: file.path.clone(),
+                score: ((score.score * 100.0).round()) / 100.0,
+                is_entry_point: score.is_entry_point,
+                symbol_count: file.symbols.len(),
+                complexity: file.metrics.cyclomatic_complexity,
+            })
+        })
+        .take(PRIORITY_FILE_LIMIT)
+        .collect();
+
+    PlanningContext {
+        primary_entry_points,
+        dependency_hubs,
+        hotspot_files,
+        priority_files,
+    }
+}
+
 fn hotspot_counts(hotspots: &[Hotspot]) -> BTreeMap<&str, usize> {
     let mut counts = BTreeMap::new();
     for hotspot in hotspots {
         *counts.entry(hotspot.path.as_str()).or_insert(0) += 1;
     }
     counts
+}
+
+fn inbound_dependency_counts(
+    adjacency: &BTreeMap<String, Vec<Dependency>>,
+) -> BTreeMap<&str, usize> {
+    let mut inbound = BTreeMap::new();
+    for deps in adjacency.values() {
+        for dep in deps {
+            if dep.resolved && !dep.external {
+                *inbound.entry(dep.target.as_str()).or_insert(0) += 1;
+            }
+        }
+    }
+    inbound
 }
 
 #[cfg(test)]
@@ -453,5 +584,80 @@ mod tests {
         assert_eq!(output.result.graph.stats.total_files, 2);
         assert_eq!(output.result.files[0].path, "src/main.ts");
         assert!(output.pretty.contains("src/main.ts"));
+    }
+
+    #[test]
+    fn planning_result_exposes_top_level_symbols_and_dependencies() {
+        let result = make_result(vec![make_file("src/main.ts", 2, 1, 12)]);
+        let planning = build_planning_result(&result);
+
+        assert!(planning.symbols.contains_key("src/main.ts"));
+        assert!(planning.dependencies.contains_key("src/main.ts"));
+        assert_eq!(
+            planning.planning.primary_entry_points,
+            vec!["src/main.ts".to_string()]
+        );
+    }
+
+    #[test]
+    fn planning_context_curates_entry_points_and_hubs() {
+        let result = AnalysisResult {
+            version: "0.1.0".to_string(),
+            project: ProjectOverview {
+                name: "fixture".to_string(),
+                root: ".".to_string(),
+                languages: BTreeMap::new(),
+                entry_points: vec!["app.ts".to_string(), "cli.ts".to_string()],
+                config_files: Vec::new(),
+                directory_tree: Vec::new(),
+            },
+            files: vec![
+                make_file("app.ts", 2, 2, 10),
+                make_file("cli.ts", 1, 0, 1),
+                make_file("lib.ts", 3, 3, 8),
+            ],
+            graph: DependencyGraph {
+                adjacency: BTreeMap::from([
+                    (
+                        "app.ts".to_string(),
+                        vec![Dependency {
+                            target: "lib.ts".to_string(),
+                            specifiers: vec!["run".to_string()],
+                            resolved: true,
+                            external: false,
+                        }],
+                    ),
+                    (
+                        "cli.ts".to_string(),
+                        vec![Dependency {
+                            target: "lib.ts".to_string(),
+                            specifiers: vec!["run".to_string()],
+                            resolved: true,
+                            external: false,
+                        }],
+                    ),
+                    ("lib.ts".to_string(), Vec::new()),
+                ]),
+                entry_points: vec!["app.ts".to_string(), "cli.ts".to_string()],
+                leaf_nodes: vec!["lib.ts".to_string()],
+                cycles: Vec::new(),
+                stats: GraphStats::default(),
+            },
+            hotspots: vec![Hotspot {
+                path: "app.ts".to_string(),
+                function: "main".to_string(),
+                metric: "cyclomatic_complexity".to_string(),
+                value: 10,
+                threshold: 8,
+            }],
+            warnings: Vec::new(),
+            summary: Summary::default(),
+        };
+
+        let planning = build_planning_result(&result);
+
+        assert_eq!(planning.planning.primary_entry_points[0], "app.ts");
+        assert_eq!(planning.planning.dependency_hubs[0].path, "lib.ts");
+        assert_eq!(planning.planning.hotspot_files[0].path, "app.ts");
     }
 }

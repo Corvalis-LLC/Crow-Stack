@@ -41,6 +41,8 @@ pub fn resolve_import(
         resolve_relative(import_source, importing_file, root)
     } else if let Some(resolved) = try_resolve_alias(import_source, root, aliases) {
         resolved
+    } else if let Some(resolved) = try_resolve_sveltekit_alias(import_source, root) {
+        resolved
     } else {
         ResolvedImport::External(import_source.to_string())
     }
@@ -96,6 +98,38 @@ fn try_resolve_alias(
         }
     }
     None
+}
+
+/// Resolve built-in SvelteKit aliases that are not always surfaced via tsconfig paths.
+///
+/// In real SvelteKit repos, `$lib` is a framework-level alias that commonly maps
+/// to `src/lib`, even when `tsconfig.json` does not define `compilerOptions.paths`.
+/// We only treat it as internal when the project actually has a `src/lib` tree.
+fn try_resolve_sveltekit_alias(import_source: &str, root: &Path) -> Option<ResolvedImport> {
+    let rest = if import_source == "$lib" {
+        ""
+    } else {
+        import_source.strip_prefix("$lib/")?
+    };
+
+    if !is_sveltekit_project(root) {
+        return None;
+    }
+
+    let relative_source = if rest.is_empty() {
+        "./src/lib".to_string()
+    } else {
+        format!("./src/lib/{rest}")
+    };
+
+    let result = resolve_relative(&relative_source, "", root);
+    matches!(result, ResolvedImport::ProjectFile(_)).then_some(result)
+}
+
+fn is_sveltekit_project(root: &Path) -> bool {
+    root.join("svelte.config.js").is_file()
+        || root.join("svelte.config.ts").is_file()
+        || root.join(".svelte-kit").exists()
 }
 
 fn resolve_relative(import_source: &str, importing_file: &str, root: &Path) -> ResolvedImport {
@@ -435,6 +469,42 @@ mod tests {
             result,
             ResolvedImport::ProjectFile("src/lib/utils.ts".into())
         );
+    }
+
+    #[test]
+    fn resolve_sveltekit_dollar_lib_alias() {
+        let dir = setup_dir();
+        write_file(dir.path(), "src/lib/server/auth.ts");
+        fs::write(
+            dir.path().join("svelte.config.js"),
+            "export default { kit: {} };",
+        )
+        .unwrap();
+
+        let result = resolve_import(
+            "$lib/server/auth",
+            "src/routes/+page.server.ts",
+            dir.path(),
+            &PathAliases::default(),
+        );
+        assert_eq!(
+            result,
+            ResolvedImport::ProjectFile("src/lib/server/auth.ts".into())
+        );
+    }
+
+    #[test]
+    fn dollar_lib_stays_external_outside_sveltekit_projects() {
+        let dir = setup_dir();
+        write_file(dir.path(), "src/lib/server/auth.ts");
+
+        let result = resolve_import(
+            "$lib/server/auth",
+            "src/main.ts",
+            dir.path(),
+            &PathAliases::default(),
+        );
+        assert_eq!(result, ResolvedImport::External("$lib/server/auth".into()));
     }
 
     #[test]
