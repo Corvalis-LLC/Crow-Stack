@@ -205,6 +205,8 @@ Analyze the stream section from the plan. Extract all file paths and keywords, t
 
 Invoke each skill via the Skill tool. Do this BEFORE reading any implementation tasks.
 
+Hard rule: if this stream session needs any web research, package/library search, vendor-doc lookup, or source-backed recommendation work, load `auto-web-validation` first before doing that research.
+
 ---
 
 ## Phase 4: Execute the Stream
@@ -468,6 +470,7 @@ Compare stream headers against status file. If mismatched, offer to add new stre
 6. **ALWAYS** read the status file before claiming
 7. **ALWAYS** verify dependencies before starting blocked streams
 8. **ALWAYS** prompt the user to clear context and run `/stream` after completing a stream
-9. The status file is the **single source of truth**
-10. The plan file is **read-only**
-11. The Final Validation stream deletes both plan and status files after successful commit/push
+9. **ALWAYS** load `auto-web-validation` before any web search, package search, or vendor/library research in `/stream`
+10. The status file is the **single source of truth**
+11. The plan file is **read-only**
+12. The Final Validation stream deletes both plan and status files after successful commit/push

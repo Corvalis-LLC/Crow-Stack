@@ -449,7 +449,8 @@ Max concurrent: 3
 10. Max 2 retries per stream
 11. Trust process exit for completion
 12. Logs persist after cleanup
-13. In `codex` final validation mode, ALWAYS run the Claude `Final Cleanup` stream first, then stop and hand off to Codex `/verify`
+13. **ALWAYS** load `auto-web-validation` before any web search, package search, or vendor/library research in `/dominion`
+14. In `codex` final validation mode, ALWAYS run the Claude `Final Cleanup` stream first, then stop and hand off to Codex `/verify`
 
 ## Rationalization Prevention
 
