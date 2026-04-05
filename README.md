@@ -15,7 +15,7 @@ Use `/summon` whenever you are starting a new piece of work.
 - Choose **Talk about it** if the idea is still fuzzy
 
 If you choose **Plan**, `/summon` will:
-- automatically use `corvalis-recon` when the binary is installed in `~/.claude/bin/`
+- use `corvalis-recon` as the first-pass codebase analysis step when the binary is installed in `~/.claude/bin/`
 - write the plan to `docs/plans/`
 - run the standards gate against relevant `auto-*` skills
 - optionally run refinement gates like Swarm, Skill Gate, and Triumvirate
@@ -89,6 +89,20 @@ chmod +x install.sh
 The script symlinks each skill directory into `~/.claude/skills/`. Existing skills with the same name are backed up to `~/.claude/skills-backup-<timestamp>/`.
 
 It also attempts to install or upgrade `corvalis-recon` into `~/.claude/bin/`. When present, `/summon` will automatically use that binary during the planning path for structured codebase analysis.
+
+If you want the shorter shell alias, add this to your shell config:
+
+```bash
+echo 'alias recon="$HOME/.claude/bin/corvalis-recon"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+For bash:
+
+```bash
+echo 'alias recon="$HOME/.claude/bin/corvalis-recon"' >> ~/.bashrc
+source ~/.bashrc
+```
 
 ### Claude Code Manual Install
 
@@ -192,6 +206,7 @@ The current implementation is optimized for TypeScript-heavy repos, which matche
 
 It is primarily used by `/summon` during the **Plan** path:
 - if `~/.claude/bin/corvalis-recon` exists, `/summon` attempts to run it automatically in compact planning mode
+- the shell alias `recon` can be pointed at that binary for direct terminal use
 - for larger repositories, summon can pass `--budget 8000` to keep the output compact
 - if the binary is missing or recon fails, summon silently falls back to normal `Glob` / `Grep` / `Read` exploration
 
@@ -240,6 +255,12 @@ You can also run recon directly outside `/summon`:
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project
 ```
 
+Or, if you added the alias:
+
+```bash
+recon analyze --root /path/to/project
+```
+
 Useful direct applications:
 - inspect the full JSON output for a repo before writing a plan
 - generate a compact planning payload with top-level `symbols`, `dependencies`, and curated entry-point / hotspot context
@@ -254,6 +275,15 @@ Examples:
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project --format json --mode planning
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project --format pretty
 ~/.claude/bin/corvalis-recon analyze --root /path/to/project --budget 8000
+```
+
+Alias equivalents:
+
+```bash
+recon analyze --root /path/to/project --format json
+recon analyze --root /path/to/project --format json --mode planning
+recon analyze --root /path/to/project --format pretty
+recon analyze --root /path/to/project --budget 8000
 ```
 
 Recommended budget guidance:

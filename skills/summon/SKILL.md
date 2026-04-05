@@ -27,23 +27,26 @@ Then ask the user which path they want:
 
 ### A1. Brainstorm & Write the Plan
 
-#### Run Recon (if available)
+#### Run Recon First (mandatory when available)
 
-Before brainstorming, attempt to gather structured codebase context via `corvalis-recon`:
+Before brainstorming, gather structured codebase context via `corvalis-recon` as the **first** repository exploration step:
 
-1. **Binary check:** Look for `~/.claude/bin/corvalis-recon` (macOS/Linux) or `%USERPROFILE%\.claude\bin\corvalis-recon.exe` (Windows). If not found, skip silently.
-2. **Run:** `timeout 30s ~/.claude/bin/corvalis-recon analyze --root <project_root> --format json --mode planning`
+1. **Do not start with Glob/Grep/Read if recon is available.** Recon takes priority over organic file discovery for initial context gathering.
+2. **Binary check:** Look for `~/.claude/bin/corvalis-recon` (macOS/Linux) or `%USERPROFILE%\.claude\bin\corvalis-recon.exe` (Windows). The human-facing shell alias `recon` may point to this binary, but summon should verify the binary path directly rather than assuming the alias exists in the current shell.
+3. **Run immediately if present:** `timeout 30s ~/.claude/bin/corvalis-recon analyze --root <project_root> --format json --mode planning`
    - For large codebases (500+ files expected), add `--budget 8000`
-3. **Validate output:** Check that the JSON parses successfully, has a `version` field, and has non-empty `planning`, `dependencies`, and `summary` sections.
-4. **On success:** Surface a one-line summary to the user: `"Recon: analyzed X files, Y symbols, Z dependencies"` (from the `summary` field). Feed the recon output into the brainstorming steps below — see `recon/instructions.md` for how to interpret each section.
-5. **On ANY failure** (binary missing, timeout, crash, invalid JSON, empty planning payload): emit a single-line stderr warning (`"recon: skipped — <reason>"`) and fall back to organic Glob/Grep/Read exploration. **Zero degradation** — the planning flow continues identically without recon.
+4. **Validate output:** Check that the JSON parses successfully, has a `version` field, and has non-empty `planning`, `dependencies`, and `summary` sections.
+5. **On success:** Surface a one-line summary to the user: `"Recon: analyzed X files, Y symbols, Z dependencies"` (from the `summary` field). Feed the recon output into the brainstorming steps below — see `recon/instructions.md` for how to interpret each section.
+6. **Only if recon is unavailable or invalid:** emit a single-line stderr warning (`"recon: skipped — <reason>"`) and then fall back to organic Glob/Grep/Read exploration. **Zero degradation** — the planning flow continues identically without recon.
+
+Hard rule: while recon has not yet been checked, do **not** claim that a file, symbol, subsystem, or program "doesn't exist". First verify via recon when available; if recon is unavailable or insufficient for that question, then verify via direct filesystem/code search before making the claim.
 
 #### Brainstorm
 
 Follow `auto-workflow`'s planning flow:
 
 1. Clarify the work
-2. Brainstorm the approach (informed by recon output when available — use dependency graph for stream boundaries, hotspots for complexity assessment, entry points for architecture understanding)
+2. Brainstorm the approach (start from recon output when available — use dependency graph for stream boundaries, hotspots for complexity assessment, entry points for architecture understanding; only supplement with Glob/Grep/Read after recon)
 3. Produce the plan
 4. **Write it to `docs/plans/YYYY-MM-DD-<slug>.md` before proceeding**
 5. Get user approval

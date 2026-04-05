@@ -2,6 +2,8 @@
 
 How summon consumes `corvalis-recon analyze --mode planning` output during Phase A1 brainstorming.
 
+Recon is the preferred first-pass repository understanding source. When the binary is available and the output validates, summon should anchor its initial context gathering in recon before using ad hoc `Glob`/`Grep`/`Read` exploration.
+
 ## JSON Schema Reference
 
 ```json
@@ -135,3 +137,18 @@ Before consuming recon output, summon verifies:
 4. **JSON parses successfully** — malformed output triggers immediate fallback
 
 If any check fails, summon falls back to organic `Glob`/`Grep`/`Read` exploration with zero degradation. The single-line warning goes to stderr; the user sees no disruption.
+
+## Claim Discipline
+
+Before making a negative existence claim such as:
+- "that file doesn't exist"
+- "there is no such program"
+- "the repo doesn't have that subsystem"
+
+summon must verify in this order:
+
+1. Check whether recon is available and valid for the current repo
+2. If yes, inspect the relevant recon sections first (`planning`, `symbols`, `dependencies`, `project`)
+3. If recon is unavailable, inconclusive, or too coarse for the specific claim, then perform direct filesystem/code search
+
+Absence must never be inferred purely from not having looked yet.
