@@ -400,10 +400,9 @@ fn build_analysis_scope(
         for import in &file_symbols.imports {
             if let resolve::ResolvedImport::ProjectFile(target) =
                 resolve::resolve_import(&import.source, &parsed.source_file.path, root, &aliases)
+                && included_paths.insert(target.clone())
             {
-                if included_paths.insert(target.clone()) {
-                    imported_files.push(target);
-                }
+                imported_files.push(target);
             }
         }
 
@@ -413,10 +412,9 @@ fn build_analysis_scope(
             };
             if let resolve::ResolvedImport::ProjectFile(target) =
                 resolve::resolve_import(source, &parsed.source_file.path, root, &aliases)
+                && included_paths.insert(target.clone())
             {
-                if included_paths.insert(target.clone()) {
-                    imported_files.push(target);
-                }
+                imported_files.push(target);
             }
         }
     }
