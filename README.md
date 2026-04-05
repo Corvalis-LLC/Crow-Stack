@@ -50,10 +50,12 @@ Once `/stream` or `/dominion` has started and the status file exists, Codex `/ve
 
 Every multi-stream execution path ends with an auto-injected final validation stream.
 
-- If the plan’s final validation mode is `codex`, that final stream uses `codex-validation`
+- If the plan’s final validation mode is `codex`, Claude runs a `Final Cleanup` stream first as the automated discipline sweep, then hands off to Codex `/verify` for the stricter human-in-the-loop findings-first final audit
 - If the plan’s final validation mode is `review`, that final stream uses the classic `/review` path
 
-That final stream verifies the completed work, then closes out the plan and status files.
+In `review` mode, the final stream verifies the completed work, commits, pushes, and closes out the plan and status files.
+
+In `codex` mode, this behaves like a double verification pass: Claude does the broad cleanup and automated standards sweep first, then Codex does the stricter final review. The Claude cleanup stream leaves the repo uncommitted and preserves the plan/status artifacts so Codex `/verify` can do the final nitpick pass with full context.
 
 ## Primary Entry Points
 
@@ -88,7 +90,7 @@ chmod +x install.sh
 
 The script symlinks each skill directory into `~/.claude/skills/`. Existing skills with the same name are backed up to `~/.claude/skills-backup-<timestamp>/`.
 
-It also attempts to install or upgrade `corvalis-recon` into `~/.claude/bin/`. When present, `/summon` will automatically use that binary during the planning path for structured codebase analysis.
+It also attempts to install or upgrade `corvalis-recon` into `~/.claude/bin/`. When present, `/summon` will automatically use that binary during the planning path for structured codebase analysis. On `zsh` and `bash`, the installer also adds a `recon` alias pointing to that binary if the alias is not already present.
 
 If you want the shorter shell alias, add this to your shell config:
 
@@ -286,6 +288,20 @@ recon analyze --root /path/to/project --format pretty
 recon analyze --root /path/to/project --budget 8000
 ```
 
+Diff-scoped examples:
+
+```bash
+recon analyze --root /path/to/project --format json --mode planning --diff HEAD
+recon analyze --root /path/to/project --format json --mode planning --diff main...HEAD
+```
+
+`--diff <range>` scopes analysis to changed supported source files plus a small local context window:
+- changed files in the git diff range
+- a few same-directory sibling files
+- directly imported project files referenced by the changed files
+
+The output includes a `scope` object so downstream tools can see exactly which files were included.
+
 Recommended budget guidance:
 - small repos: no budget
 - medium repos: `--budget 16000`
@@ -315,8 +331,9 @@ Rust and other languages can be added later, but today recon is optimized for th
 ### Codex flow
 
 1. Install Codex companion skills into `~/.codex/skills/` using `./install-codex.sh` or the manual steps above
-2. If a plan exists but execution has not started yet, run `/verify` to refine the plan
-3. If implementation is already underway, run `/verify` to perform the stronger findings-first validation pass
+2. If `corvalis-recon` is installed in `~/.claude/bin/`, Codex `/verify` can use it as a first-pass repo context source before deeper validation
+3. If a plan exists but execution has not started yet, run `/verify` to refine the plan
+4. If implementation is already underway, run `/verify` to perform the stronger findings-first validation pass
 
 ## The Execution Stack
 

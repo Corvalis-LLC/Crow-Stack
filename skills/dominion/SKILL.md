@@ -60,7 +60,9 @@ Once a plan is resolved, immediately check for its companion `.status.json`. If 
    - `Mode: review` → final validation uses classic `review`
    - If absent, default to `review`
 5. Write `docs/plans/{slug}.status.json` with all streams set to `pending`, including `baselineSkills` per stream and the selected `finalValidationMode`
-6. Auto-inject Final Validation stream with dependencies on ALL other stream IDs
+6. Final validation handling depends on mode:
+   - `review` mode → auto-inject `Final Validation` stream with dependencies on ALL other stream IDs
+   - `codex` mode → auto-inject `Final Cleanup` stream with dependencies on ALL other stream IDs. This is the last Claude stream. After it completes, dominion stops and hands off to Codex `/verify`.
 
 ### Step 3: Pre-flight validation
 
@@ -82,8 +84,13 @@ Execution schedule (from parallelization section):
   Phase 3: Streams 5, 6 (parallel)            — 2 instances
   Phase 4: Final Validation                   — 1 instance
 
-Total: 4 phases, max 3 concurrent instances
-Estimated: ~4 stream durations (vs ~7 sequential)
+If final validation mode is `codex`, show this instead:
+
+  Phase 4: Final Cleanup                      — 1 Claude instance
+  Phase 5: Codex handoff                      — no Claude stream spawned
+
+Total: 4-5 phases, max 3 concurrent instances
+Estimated: ~4-5 stream durations (vs ~7 sequential)
 
 Proceed? [Y/n]
 ```
@@ -198,9 +205,34 @@ When ALL streams in the current phase are `completed`:
 
 When all non-final streams are `completed`:
 
+If final validation mode is `review`:
+
 1. Spawn one headless instance for the Final Validation stream
 2. Monitor until complete
-3. The Final Validation stream handles: full verification, selected validation mode (`codex-validation` or `review`), git commit/push, plan+status cleanup
+3. The Final Validation stream handles: full verification, selected validation mode (`review`), git commit/push, plan+status cleanup
+
+If final validation mode is `codex`:
+
+1. Spawn one headless instance for the Final Cleanup stream
+2. Monitor until complete
+3. The Final Cleanup stream handles: full verification, broad cleanup, and obvious improvement passes, but it does **not** run `codex-validation`, commit, push, or delete plan/status artifacts
+4. After Final Cleanup completes, stop orchestration and hand off to the user to run Codex for the stricter final validation pass
+
+Use language like:
+
+```
+Implementation and Claude cleanup streams complete.
+
+Final validation mode is `codex`, so dominion will not spawn a Claude Codex-validation stream.
+
+Next step:
+  Open Codex in the same repo and run `/verify`
+
+Artifacts preserved for Codex:
+  - docs/plans/{slug}.md
+  - docs/plans/{slug}.status.json
+  - docs/plans/.dominion-logs/
+```
 
 ---
 
@@ -227,6 +259,27 @@ Phase breakdown:
 
 Plan and status files cleaned up by Final Validation.
 Logs available at: docs/plans/.dominion-logs/
+```
+
+### Codex Handoff
+
+```
+/dominion implementation and cleanup phases complete ✓
+
+Plan: docs/plans/2026-03-31-feature-overhaul.md
+Implementation streams: 6/6 completed
+Final Cleanup: completed
+Final validation mode: codex
+
+No Claude Codex-validation stream was spawned.
+
+Next step:
+  Open Codex and run `/verify`
+
+Preserved for Codex:
+  - docs/plans/2026-03-31-feature-overhaul.md
+  - docs/plans/2026-03-31-feature-overhaul.status.json
+  - docs/plans/.dominion-logs/
 ```
 
 ### Failure
@@ -396,6 +449,7 @@ Max concurrent: 3
 10. Max 2 retries per stream
 11. Trust process exit for completion
 12. Logs persist after cleanup
+13. In `codex` final validation mode, ALWAYS run the Claude `Final Cleanup` stream first, then stop and hand off to Codex `/verify`
 
 ## Rationalization Prevention
 

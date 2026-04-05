@@ -72,7 +72,9 @@ Once a plan is resolved, immediately check for its companion `.status.json`. If 
    - `Mode: review` → final validation uses classic `review`
    - If absent, default to `review`
 5. Write `docs/plans/{slug}.status.json` with all streams set to `pending`, including `baselineSkills` per stream and the selected `finalValidationMode`
-6. **Auto-inject Final Validation stream:** Add a `"final"` stream with dependencies on ALL other stream IDs. This stream handles full verification, selected validation mode, git commit/push, and plan cleanup.
+6. **Auto-inject final stream:**
+   - `review` mode → add a `"final"` stream named `Final Validation`. This stream handles full verification, classic review, git commit/push, and plan cleanup.
+   - `codex` mode → add a `"final"` stream named `Final Cleanup`. This stream handles full verification plus Claude-side cleanup and improvement work, but it does **not** run `codex-validation`, commit, push, or clean up the plan/status files. Those are preserved for the Codex `/verify` handoff.
 7. Display the dependency graph
 
 See `references/status-schema.md` for the full JSON schema.
@@ -152,14 +154,12 @@ These load for every stream, regardless of `baselineSkills`:
 - `auto-naming` (naming discipline)
 - `auto-edge-cases` (boundary handling)
 
-### Final Validation stream override
+### Final stream override
 
-If the claimed stream is the Final Validation stream (`"final"`), load ONLY:
+If the claimed stream is the auto-generated final stream (`"final"`), load ONLY:
 - `auto-workflow`
 - `auto-coding`
-- the selected final validation skill:
-  - `codex-validation` when the status/plan mode is `codex`
-  - `review` when the status/plan mode is `review`
+- `review` when the status/plan mode is `review`
 
 Then proceed directly to Phase 4F.
 
@@ -351,12 +351,20 @@ Helper mode is not optional. The Final Validation stream does not complete until
 
 Run the selected validation mode on all uncommitted changes:
 
-- **Mode: `codex`** → run `codex-validation`
 - **Mode: `review`** → run `/review`
 
-For `codex-validation`, fix all issues it identifies before commit. For classic `/review`, fix all **issues** and **suggestions**. Nitpicks are optional.
+For classic `/review`, fix all **issues** and **suggestions**. Nitpicks are optional.
+
+If mode is `codex`, replace this step with **Claude Cleanup Review**:
+
+- perform one more broad pass over the changed areas and surrounding context
+- fix obvious correctness, readability, maintainability, warning-cleanup, and testability issues you can confidently improve
+- do **not** run `codex-validation` here
+- do **not** treat this as the final nitpick pass; Codex `/verify` is the stricter downstream audit
 
 ### 4F.3 Git Commit & Push
+
+If mode is `codex`, skip this step entirely. Do not commit or push. Preserve the working tree for Codex.
 
 1. `git status` and `git diff` to review changes
 2. Stage specific files (never `git add .` — skip `.env`, `node_modules/`, build artifacts)
@@ -365,13 +373,21 @@ For `codex-validation`, fix all issues it identifies before commit. For classic 
 
 ### 4F.4 Cleanup
 
+If mode is `codex`, skip this step entirely. Do not delete the plan or status files.
+
 After successful commit and push:
 1. Delete the plan file: `docs/plans/YYYY-MM-DD-<slug>.md`
 2. Delete the status file: `docs/plans/YYYY-MM-DD-<slug>.status.json`
 
 ### 4F.5 Announce Completion
 
-Report: commit hash, branch, push status, summary of all streams completed, files cleaned up.
+If mode is `review`, report: commit hash, branch, push status, summary of all streams completed, files cleaned up.
+
+If mode is `codex`, report:
+- Final Cleanup completed
+- no commit/push performed
+- plan and status files preserved
+- next step is to open Codex and run `/verify`
 
 ---
 

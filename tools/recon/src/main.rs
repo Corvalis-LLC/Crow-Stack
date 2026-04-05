@@ -16,13 +16,15 @@ fn main() -> Result<()> {
     match cli.command.unwrap_or(Command::Analyze {
         budget: None,
         mode: AnalyzeMode::Full,
+        diff: None,
     }) {
-        Command::Analyze { budget, mode } => {
+        Command::Analyze { budget, mode, diff } => {
             let walk_options = WalkOptions {
                 include: cli.include,
                 exclude: cli.exclude,
             };
-            let output = analyze::analyze_project(&cli.root, &walk_options, budget)?;
+            let output =
+                analyze::analyze_project(&cli.root, &walk_options, budget, diff.as_deref())?;
 
             match cli.format {
                 OutputFormat::Json => match mode {

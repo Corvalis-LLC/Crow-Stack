@@ -18,6 +18,8 @@ use serde::Serialize;
 pub struct AnalysisResult {
     pub version: String,
     pub project: ProjectOverview,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<AnalysisScope>,
     pub files: Vec<FileAnalysis>,
     pub graph: DependencyGraph,
     pub hotspots: Vec<Hotspot>,
@@ -30,6 +32,8 @@ pub struct AnalysisResult {
 pub struct PlanningResult {
     pub version: String,
     pub project: ProjectOverview,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<AnalysisScope>,
     pub symbols: BTreeMap<String, Vec<Symbol>>,
     pub dependencies: BTreeMap<String, Vec<Dependency>>,
     pub graph: DependencyGraph,
@@ -37,6 +41,18 @@ pub struct PlanningResult {
     pub warnings: Vec<Warning>,
     pub summary: Summary,
     pub planning: PlanningContext,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AnalysisScope {
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff_range: Option<String>,
+    pub changed_files: Vec<String>,
+    pub sibling_files: Vec<String>,
+    pub imported_files: Vec<String>,
+    pub included_files: Vec<String>,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -283,6 +299,7 @@ impl AnalysisResult {
                 config_files: Vec::new(),
                 directory_tree: Vec::new(),
             },
+            scope: None,
             files: Vec::new(),
             graph: DependencyGraph {
                 adjacency: BTreeMap::new(),

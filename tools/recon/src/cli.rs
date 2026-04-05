@@ -40,6 +40,10 @@ pub enum Command {
         /// Output profile for the analysis payload
         #[arg(long, value_enum, default_value = "full")]
         mode: AnalyzeMode,
+
+        /// Restrict analysis to changed files plus a small local context window
+        #[arg(long)]
+        diff: Option<String>,
     },
 
     /// Extract symbols from specific files or the whole project
@@ -101,7 +105,8 @@ mod tests {
             cli.command,
             Some(Command::Analyze {
                 budget: None,
-                mode: AnalyzeMode::Full
+                mode: AnalyzeMode::Full,
+                diff: None,
             })
         ));
     }
@@ -121,7 +126,8 @@ mod tests {
             cli.command,
             Some(Command::Analyze {
                 budget: Some(8000),
-                mode: AnalyzeMode::Full
+                mode: AnalyzeMode::Full,
+                diff: None,
             })
         ));
     }
@@ -133,8 +139,22 @@ mod tests {
             cli.command,
             Some(Command::Analyze {
                 budget: None,
-                mode: AnalyzeMode::Planning
+                mode: AnalyzeMode::Planning,
+                diff: None,
             })
+        ));
+    }
+
+    #[test]
+    fn parse_analyze_with_diff_range() {
+        let cli = Cli::parse_from(["corvalis-recon", "analyze", "--diff", "main...HEAD"]);
+        assert!(matches!(
+            cli.command,
+            Some(Command::Analyze {
+                budget: None,
+                mode: AnalyzeMode::Full,
+                diff: Some(ref range)
+            }) if range == "main...HEAD"
         ));
     }
 

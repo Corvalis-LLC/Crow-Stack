@@ -11,6 +11,7 @@ BACKED_UP=false
 RECON_REPO="Corvalis-LLC/corvalis-skills"
 RECON_BIN_DIR="$HOME/.claude/bin"
 RECON_BIN="$RECON_BIN_DIR/corvalis-recon"
+RECON_ALIAS_LINE='alias recon="$HOME/.claude/bin/corvalis-recon"'
 
 # --- Skills Installation ---
 
@@ -174,4 +175,34 @@ install_recon() {
   fi
 }
 
+ensure_recon_alias() {
+  echo ""
+  echo "--- recon alias ---"
+
+  local shell_name rc_file
+  shell_name="$(basename "${SHELL:-}")"
+
+  case "$shell_name" in
+    zsh) rc_file="$HOME/.zshrc" ;;
+    bash) rc_file="$HOME/.bashrc" ;;
+    *)
+      echo "  skip: unsupported interactive shell for auto-alias ($shell_name)"
+      echo "  add manually: $RECON_ALIAS_LINE"
+      return 0
+      ;;
+  esac
+
+  touch "$rc_file"
+
+  if grep -Fqx "$RECON_ALIAS_LINE" "$rc_file"; then
+    echo "  skip: alias already present in $rc_file"
+    return 0
+  fi
+
+  printf '\n%s\n' "$RECON_ALIAS_LINE" >> "$rc_file"
+  echo "  added: recon alias -> $rc_file"
+  echo "  reload your shell or run: source $rc_file"
+}
+
 install_recon
+ensure_recon_alias
