@@ -1,15 +1,15 @@
 ---
 name: design
-description: "Creative UI/UX design system with curated component cheat sheets, design auditing, component generation, and style migration. User-invocable only via /design command — do NOT auto-trigger. Triggers: design."
+description: "Creative UI/UX design system with curated component cheat sheets, design auditing, component generation, and style migration. Auto-loaded by summon Path D — not a standalone entry point. Use /summon and choose path 4 (Design) for UI/UX work."
 ---
 
-<command-name>design</command-name>
+# Design System Orchestrator
 
-# /design — Design System Orchestrator
+**Entry point:** `/summon` → Path D (Design). This skill is auto-loaded by summon's design path, not invoked directly.
 
 ## Auto-Bootstrap (ALWAYS — No Questions)
 
-On EVERY invocation — whether via `/design` or summon — silently bootstrap:
+On EVERY invocation — whether via summon Path D or direct load — silently bootstrap:
 
 1. **Load `auto-layout`** — layout discipline applies to all design work (non-negotiable)
 2. Read `.design/system.md` from the **current project root** (next to `CLAUDE.md`)

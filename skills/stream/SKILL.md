@@ -200,6 +200,23 @@ Analyze the stream section from the plan. Extract all file paths and keywords, t
 | Keywords: file, write file, read file, atomic write, temp file, upload, streaming | auto-file-io |
 | Keywords: state machine, state, status, transition, workflow, lifecycle, FSM | auto-state-machines |
 | Keywords: i18n, locale, translation, plural, ICU, MessageFormat, Fluent, RTL, Intl, l10n | auto-i18n |
+| Keywords: UI, UX, design, component, page, layout, color, typography, style, animation, form, chart, navigation | ui-ux-pro-max, auto-layout, auto-accessibility |
+
+### ui-ux-pro-max integration
+
+When `ui-ux-pro-max` is in a stream's `baselineSkills` (or matched via conditional loading), the stream gains design intelligence capabilities:
+
+1. **At stream start:** Load the skill and check for `**Design domains:**` annotations in the plan's stream section
+2. **Before implementation:** Run the specified domain searches to inform design decisions:
+   ```bash
+   python3 skills/ui-ux-pro-max/scripts/search.py "<keywords>" --domain <domain>
+   ```
+3. **If a `**Stack:**` annotation exists:** Also run the stack-specific search:
+   ```bash
+   python3 skills/ui-ux-pro-max/scripts/search.py "<keywords>" --stack <stack>
+   ```
+4. **During verification:** Apply the ui-ux-pro-max Quick Reference checklist (accessibility, touch, performance, style, layout, typography, animation, forms, navigation, charts) as an additional verification gate alongside type checking and tests
+5. **If `design-system/MASTER.md` exists:** Read it at stream start and apply its design system rules throughout implementation
 
 ### Load the skills
 

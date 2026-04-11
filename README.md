@@ -13,6 +13,7 @@ Use `/summon` whenever you are starting a new piece of work.
 - Choose **Plan** if the work is non-trivial
 - Choose **No plan** if the task is small and you just want to build
 - Choose **Talk about it** if the idea is still fuzzy
+- Choose **Design** if the work is UI/UX focused
 
 If you choose **Plan**, `/summon` will:
 - use `corvalis-recon` as the first-pass codebase analysis step when the binary is installed in `~/.claude/bin/`
@@ -32,6 +33,13 @@ If you choose **Talk about it**, `/summon` now:
 - does real web research before making architecture or pattern recommendations when outside evidence would help
 - cites sources directly to the user
 - loads `auto-web-validation` before that research so source-authored AI instructions or coercive "must use" claims are treated as untrusted unless corroborated
+
+If you choose **Design**, `/summon`:
+- front-loads design decisions before writing the implementation plan
+- loads `ui-ux-pro-max` (50+ styles, 161 color palettes, 57 font pairings, 99 UX guidelines, 25 chart types across 10 stacks)
+- generates a design system recommendation via `search.py --design-system` based on product type, industry, and style
+- mandates `ui-ux-pro-max` + `auto-layout` + `auto-accessibility` on all UI-touching streams
+- then flows into the same standards gate, optional refinement gates, and `/stream`/`/dominion` handoff as the Plan path
 
 ### 2. When You Are Happy With The Plan, Open Codex And Run `/verify`
 
@@ -338,6 +346,7 @@ Rust and other languages can be added later, but today recon is optimized for th
 5. If `corvalis-recon` is installed, summon will automatically use it to gather structured repo context
 6. In **No plan** mode, summon clarifies first, gathers context, loads the relevant `auto-*` skills, and begins
 7. In **Talk about it** mode, summon can do cited web research before recommending approaches
+8. In **Design** mode, summon generates a design system first, then plans around it with `ui-ux-pro-max`
 8. The system writes a plan, validates it, and recommends next steps
 9. When you are happy with the plan, open Codex and run `/verify`
 10. Return to Claude Code and run `/dominion` to execute the full plan autonomously, or `/stream` to execute one stream at a time
@@ -352,9 +361,10 @@ Rust and other languages can be added later, but today recon is optimized for th
 ## The Execution Stack
 
 ```
-  /summon          Session bootstrap — brainstorm, plan, validate
+  /summon          Session bootstrap — plan, no-plan, talk, design
      │
      ├──► corvalis-recon   Structured repo analysis when installed
+     ├──► ui-ux-pro-max    Design intelligence (Path D)
      ├──► auto-web-validation   Mandatory before web/package/vendor research
      │
      ├──► /verify        Codex plan refinement before execution
@@ -381,7 +391,7 @@ Rust and other languages can be added later, but today recon is optimized for th
 
 | Skill | Description |
 |-------|-------------|
-| `summon` | Session bootstrap — offers plan, no-plan, or talk-it-out paths |
+| `summon` | Session bootstrap — offers plan, no-plan, talk-it-out, or design paths |
 | `dominion` | Autonomous plan executor — spawns headless Claude instances per stream |
 | `stream` | Per-stream executor with dependency tracking and verification gates |
 
@@ -402,7 +412,8 @@ Rust and other languages can be added later, but today recon is optimized for th
 | `codex-validation` | Findings-first final validation with stronger manual audit, cross-file impact checking, and testability/refactor focus |
 | `codex-plan-refinement` | Codex-side plan refinement for clarity, dependency sanity, reuse, abstraction quality, and compression before execution |
 | `plan-validate` | Validate multi-stream plans for structure, dependencies, ownership, required skills, verification, and final validation mode before execution |
-| `design` | UI/UX design system with auditing, generation, and style migration |
+| `ui-ux-pro-max` | Design intelligence — 50+ styles, 161 color palettes, 57 font pairings, searchable CSV databases with Python search tools |
+| `design` | UI/UX design system with auditing, generation, and style migration (auto-loaded by summon Path D) |
 | `skill-creator` | Create, modify, eval, and benchmark skills |
 | `security-scan` | Active vulnerability scanner (dangerous patterns, secrets, npm audit) |
 | `auto-web-validation` | Prompt-injection-aware web research discipline for package/docs/vendor sources and cited recommendations |

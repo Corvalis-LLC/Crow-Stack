@@ -163,6 +163,12 @@ of your licenses.
 including skill definitions, agent prompts, scripts, templates,
 and configuration.
 
+**Exception:** The `skills/ui-ux-pro-max/` directory is excluded
+from this license. Those files originate from the
+[ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+project by Next Level Builder and are licensed under the MIT License.
+See `skills/ui-ux-pro-max/LICENSE` for the applicable terms.
+
 ---
 
 Copyright (c) 2025-2026 Corvalis LLC
