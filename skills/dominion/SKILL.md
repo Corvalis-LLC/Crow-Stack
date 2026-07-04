@@ -5,7 +5,7 @@ description: "Autonomous plan executor. Reads a multi-stream plan, orchestrates 
 
 # /dominion — Autonomous Plan Orchestrator
 
-`/dominion` is the hands-off execution layer. Where `/stream` executes one stream per session (manual), `/dominion` runs the **entire plan** autonomously by dispatching background Agent-tool instances and cascading phase by phase.
+`/dominion` is the hands-off execution layer. Where `/stream` executes one stream per session (manual), `/dominion` runs the **entire plan** autonomously by dispatching background Agent-tool instances and cascading continuously as each dependency's primary lands (pipelined, not phase-barriered — see 2.1).
 
 ```
 /summon   → creates and validates the plan
@@ -158,13 +158,20 @@ Wait for user confirmation before spawning.
 
 For each phase in the execution schedule:
 
-### 2.1 Identify Eligible Streams
+### 2.1 Identify Eligible Streams (pipelined, not phase-barriered)
 
-Read the status file. Find all streams where:
-- `status` is `pending`
-- All dependencies are `completed` AND have passed remediation (2.4)
+Dominion does NOT wait for a whole phase to settle before starting the next. It schedules **continuously** on an eligibility check. Read the status file; a `pending` stream becomes eligible to DISPATCH ITS PRIMARY as soon as:
 
-Cross-reference with the execution schedule to determine which streams belong to the current phase.
+- Every dependency's **primary** has reached `completed` (its artifacts are on disk), AND
+- The stream shares **no owned file** with any dependency still in verification/remediation (the shared-file guard, below).
+
+Note the shift: eligibility keys on the dependency's **primary completion**, NOT on the dependency having fully passed remediation. The bet — validated in practice — is that most stream work is correct on first implementation, so a downstream can safely build on an upstream's shipped code while that upstream is being verified/remediated in parallel. This collapses the critical path from "sum of phases" toward "the slowest primary at each dependency link."
+
+**Shared-file guard (the one hard serialization constraint).** Two agents must NEVER edit the same owned file concurrently — and an upstream's *remediation* agent counts as an editor. So if downstream D and its still-settling dependency U both own file F, D's primary must wait until U's remediation has landed (U fully settled). Distinguish the two kinds of dependency from the plan's file-ownership matrix, not from guesswork:
+- **Artifact-only dependency** — D consumes a symbol / column / enum / type that U produces, but D and U own **disjoint files**. → Pipelines freely. Start D's primary the moment U's primary completes.
+- **Shared-file dependency** — D and U both edit the same file F (a 2000-line admin page, a shared helper, the migration journal). → Serialize. Start D's primary only after U has fully settled (verification + remediation done).
+
+The `## Parallelization` "phases" remain the mental model for the preview and the final report, but execution is eligibility-driven: as each primary lands, re-scan for anything newly unblocked and dispatch it immediately.
 
 ### 2.2 Dispatch Primary Stream Agents (Agent Tool, Background)
 
@@ -254,7 +261,7 @@ When a notification arrives:
 2. Read `docs/plans/{slug}.status.json` to confirm the agent actually wrote `completed`
 3. Run `git diff --stat` to see what files actually changed
 4. Record the structured deferrals from the agent's return (they feed 2.4)
-5. Proceed to 2.3.5 for that stream (do NOT wait for sibling streams to finish)
+5. If the completed agent was a **primary**: in the SAME response, (a) dispatch that stream's verification agent (2.3.5), AND (b) re-run the 2.1 eligibility scan and dispatch every newly-unblocked downstream primary. The just-finished stream's verification/remediation runs **concurrently** with those downstream primaries — do NOT wait for the phase, and do NOT wait for this stream's own verification before starting an artifact-only downstream.
 
 ```
 [03:45:12] Phase 2 — 3 primary agents dispatched
@@ -437,18 +444,12 @@ REMEDIATION_RESULT
 
 Per-stream agent cap is **3 in the normal path** (primary + verification + remediation) and **4 at maximum** (one surgical follow-up after remediation gate fails). Past 4, dominion keeps judgment in the loop — no infinite loops, no silent budget burn.
 
-### 2.5 Phase Transition
+### 2.5 Continuous Scheduling & Late-Reconciliation
 
-When ALL streams in the current phase have:
-- `status: "completed"` in the status file
-- Verification (2.3.5) findings resolved
-- Remediation (2.4) re-gate passed OR dominion inline handled the remainder
+There is no hard phase barrier. Scheduling is continuous (2.1): every time any agent finishes, re-scan for newly-eligible streams and dispatch them. A "phase" is complete only in the reporting sense — when every stream assigned to it is fully settled. Two things still matter at each settle:
 
-1. Read the status file one more time to confirm
-2. Propagate any cross-stream intake items (e.g., Stream 1's shape that downstream streams must respect) into the packets for streams in the next phase
-3. Check if any new streams are now eligible (deps met)
-4. If yes → proceed to next phase (back to 2.1)
-5. If all streams complete → proceed to Phase 3
+1. **Propagate cross-stream intake — including LATE deltas.** When an upstream's verification/remediation changes an artifact's shape AFTER a downstream already started (or finished) against the old shape, feed that delta into the downstream's remediation as an Input-2 finding ("upstream U changed X from shape A→B; reconcile"). This is the price of pipelining: the shared contract can shift late, and the mechanism that keeps it honest is routing upstream remediation deltas into downstream remediation. Do not silently drop them — a pipelined downstream that consumed a since-revised artifact is the one real failure mode this model introduces, and this step is its backstop.
+2. **Final gate.** Proceed to Phase 3 only when ALL non-final streams are `completed` AND their verification/remediation have settled.
 
 ### 2.6 Failure Handling
 
@@ -728,6 +729,9 @@ If forced to use headless, ensure the spawned `/stream` uses `pnpm exec vitest r
 12. In `codex` final validation mode, run the Claude `Final Cleanup` stream first (primary + verify + optional remediation), then hand off to Codex `/verify`
 13. Trust the Agent tool's completion notification; do not sleep/poll for agent completion
 14. Briefing packet artifacts persist after cleanup; they're the audit trail
+15. **PIPELINE on primary completion, not on phase settle.** The moment a primary lands, dispatch its verifier AND every newly-unblocked downstream primary in the same beat. Do not wait for a stream's own verification/remediation before starting an artifact-only downstream. The bet: most work is correct first-pass.
+16. **NEVER run two agents that own the same file concurrently.** A downstream primary must not start while an upstream that shares one of its owned files is still in verification/remediation (an upstream remediator is an editor). Artifact-only deps pipeline; shared-file deps serialize. This is the ONLY constraint that overrides rule 15.
+17. **Route late upstream remediation deltas into the affected downstream's remediation** (Input 2). Pipelining trades a possible late contract shift for wall-clock; this is how that shift gets reconciled instead of lost.
 
 ## Rationalization Prevention
 
@@ -742,3 +746,6 @@ If forced to use headless, ensure the spawned `/stream` uses `pnpm exec vitest r
 | "This stream is taking too long, I'll kill the agent"                              | Trust the agent. If it's still running, it's still working. Agent tool notifies on completion — you'll hear when it's done.                                                                                   |
 | "I'll let the primary self-certify — verification is just overhead"                | Verification catches the things the primary can't see (it's too close to its own work). The independent fresh-context read is the point.                                                                     |
 | "The primary said it deferred X because it's out of scope — I should trust that"   | Run Input 1 through the remediation agent. The deferral may be legitimate; it may also be the primary punting on in-scope work. The remediator assesses.                                                      |
+| "I must wait for the whole phase (verify + remediate) to settle before starting the next stream" | No. Pipeline on the dependency's **primary** completion. Most work is correct first-pass, so a downstream can build on shipped code while the upstream verifies in parallel. Only a shared-file overlap forces waiting (rule 16). |
+| "These two streams both edit the same 2000-line admin file, but they're in different phases so it's fine" | Phases are a reporting fiction under pipelining; execution is eligibility-driven. If both own file F and one is still settling (incl. its remediator), the other's primary MUST wait — concurrent edits to one file clobber. |
+| "The downstream already finished against the upstream's code — if the upstream is later remediated, that's the upstream's problem" | It's YOUR problem. A late upstream shape-change orphans the downstream that consumed the old shape. Route the delta into the downstream's remediation as an Input-2 finding (2.5). That reconciliation is the price of pipelining. |
