@@ -130,6 +130,8 @@ When commit is authorized by the request or active workflow, and both final gate
 
 Do not manufacture an approval or commit when the user requested only a review. Reuse existing authorization rather than adding another routine question. Preserve plan/status/reports until the active finalization workflow has genuinely completed; never commit or clean up independently while a security reviewer is still running.
 
+When this validation completes an authorized plan finalization, also finish `final`'s temporary-log cleanup using the installed `stream` skill's `references/plan-lifecycle.md`. Preserve final evidence and the receipt outside `.dominion-logs`, remove only the completed plan's owned temporary artifacts, and verify deletion. A pending Codex handoff, partial review, failed check, or outstanding authorized commit/push keeps the logs available. Resume cleanup from the receipt without repeating recorded Git operations.
+
 ## Principles
 
 - Findings first, summary second

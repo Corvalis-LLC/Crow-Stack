@@ -11,6 +11,8 @@ Behavioral guardrails Claude doesn't self-impose. Everything here addresses a sp
 
 Before working, read [automatic quality routing](references/quality-routing.md). Load `auto-code-quality` for code work and code review, `auto-writing-quality` for human-facing prose, and `auto-design-quality` for new or changed designs. Summon and dominion load `auto-chat-quality` immediately. Each delegated worker must load its own applicable skills; parent loading is insufficient. Keep these requirements active through follow-up edits, verification, remediation, and context compaction.
 
+Before delegating work, read [agent capacity and dispatch](references/agent-capacity.md). Use the current host's full available capacity for independent tasks, refill slots as workers finish, and broker required independent reviews without deadlocking the worker pool. This also applies to Summon Path 2 without a written plan.
+
 ## Iron Laws
 
 1. **NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST** — One test at a time. Watch it fail. Write minimal code to pass. Then next test. Never batch tests before implementing.

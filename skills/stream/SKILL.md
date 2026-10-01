@@ -38,11 +38,13 @@ On Claude, invoke skills through Skill; on Codex, resolve and read installed `SK
 
 ### Step 1: Resolve the plan
 
+Before checking the plan folder, read [plan retention and cleanup](references/plan-lifecycle.md) and prune eligible plans older than 72 hours with their companions and attributable logs. Protect explicitly selected/current work and confirmed live owners. Apply its read-only/dry-run exception; then use the remaining files in the cascade below. Check retained finalization receipts for interrupted cleanup before treating a plan as fully finalized.
+
 **Explicit path provided:** Read the file.
 
 **Smart auto-detect (no args):** Follow this cascade:
 
-1. **Check current plan/status companions read-only:** Glob `docs/plans/*.status.json`. A current, unarchived plan is active when any stream is incomplete **or** its final pair needs migration/missing/stale evidence, even if a legacy `final` says `completed`. An explicit continuation/current task context selects its matching companion first; otherwise select a unique active companion. A recorded completed finalization/archive is not reactivated merely because its schema is old. If multiple genuinely active plans remain ambiguous, ask which plan. Assess without writing, then normalize only the selected companion after checking ownership.
+1. **Check current plan/status companions read-only:** Glob `docs/plans/*.status.json`. A current, unarchived plan is active when any stream is incomplete, its final pair needs migration/missing/stale evidence, or Codex validation/finalization/cleanup remains pending in status or its retained receipt. A `codex` plan with passing sibling reports stays active until actual Codex validation and finalization are recorded. Missing completion evidence is not completion, even if every stream says `completed`. An explicit continuation/current task context selects its matching companion first; otherwise select a unique active companion. A recorded completed finalization/archive or expired receipt is not reactivated merely because its schema is old. If multiple genuinely active plans remain ambiguous, ask which plan. Assess without writing, then normalize only the selected companion after checking ownership.
 
 2. **Check existing plan files, then git:** If no current active companion was selected (not merely when no status files exist), list `docs/plans/*.md`, including untracked plans just written by summon. Prefer the path named in current task context, then a unique unfinished plan. Git history is a supplemental hint, not a requirement that a new plan be committed. For recent tracked plans, run:
    ```bash
@@ -93,7 +95,7 @@ See `references/status-schema.md` for the full JSON schema.
 2. Filter to streams whose dependencies are ALL `completed`; the two final siblings also require every implementation `settledAt` and all late deltas to be settled
 3. From eligible set, pick the **lowest-numbered** stream
 4. If no eligible streams:
-   - All completed → announce plan completion (Phase 6)
+   - All completed → check final evidence and the retained cleanup receipt; resume pending Phase 4F validation/finalization before announcing full completion (Phase 6)
    - Some `in_progress` → **assume another session is actively working on them** (see below)
    - Dependencies unmet → enter **Dependency Wait** (see below)
 
@@ -287,9 +289,9 @@ Update the status file with the legion wave structure.
 
 For each wave, in order (T → I → D → R):
 
-**Dispatch:** Craft focused prompts and dispatch ALL agents in the wave simultaneously using Claude Agent with `run_in_background: true` or Codex collaboration agents. Respect the runtime's available concurrency capacity. All concurrent dispatch calls MUST be in a single message. Include a mandatory first-step load of `auto-chat-quality`, `auto-code-quality` for code/review, `auto-writing-quality` for prose, and `auto-design-quality` for design changes/review. Workers resolve/read the actual skill files and references, then return load evidence with their results.
+**Dispatch:** Read the installed `auto-workflow` skill's `references/agent-capacity.md`. Craft focused prompts and fill the available worker pool with this wave's ready assignments using Claude Agent with `run_in_background: true` or Codex collaboration agents. Launch fitting assignments together when native tools permit, queue the rest, and refill as each worker finishes; a phase need not finish before queued work in that phase starts. Include a mandatory first-step load of `auto-chat-quality`, `auto-code-quality` for code/review, `auto-writing-quality` for prose, and `auto-design-quality` for design changes/review. Workers resolve/read the actual skill files and references, then return load evidence with their results.
 
-**Wait:** Agents complete in background. You are notified when each finishes.
+**Wait:** Follow `auto-workflow/references/agent-capacity.md`: receive Claude completion notifications or use Codex's available native wait/status tools. Collect each completion, release capacity according to the host, and refill queued assignments before waiting for the rest of the phase.
 
 **Collect:** Read each agent's output. Note successes, failures, and any reported issues.
 
@@ -346,7 +348,7 @@ Capture the immutable snapshot including committed changes since baseline, stage
 
 ### 4F.2 Dispatch the Siblings Concurrently
 
-- **`final`:** Load the quality skills in the worker's own context. In `review` mode use `review` for the classic findings pass. In `codex` mode perform the existing broad Claude Cleanup Review for correctness, readability, maintainability, warnings, and testability; do not run `codex-validation` here. Report proposed fixes, never apply them while the sibling is reading.
+- **`final`:** Load the quality skills in the worker's own context. In `review` mode use `review` for the classic findings pass. In `codex` mode perform the existing broad Claude Cleanup Review for correctness, readability, maintainability, warnings, and testability; do not run `codex-validation` here. Inventory plan-owned temporary logs using [plan-lifecycle.md](references/plan-lifecycle.md) and return their exact cleanup paths. Report proposed fixes and cleanup, never apply them while the sibling is reading.
 - **`final-security`:** Load `auto-chat-quality`, `auto-code-quality`, `auto-writing-quality`, and `auto-security-quality` in the worker's own context. Follow the complete security audit workflow on the full captured change set and affected trust boundaries, reading surrounding code as needed. Preserve its independent fresh-agent validation, structured reports/validators, output isolation, and OS sandbox requirement for target execution. Without that sandbox, perform source review and record the execution limitation; do not treat ordinary worktree checks as sandboxed security validation. Record findings, evidence, coverage, and tool limitations.
 
 Both workers are read-only against source and write only their exclusive report/artifact directories. The security audit uses its upstream-permitted external run directory by default and returns all artifact paths; do not force its six-phase output into a tracked target directory. Neither changes shared status or commits/pushes/deletes anything. Reserve capacity for mandated independent design/security reviewers, or return their bounded assignments to the coordinator and release the worker slot for phased scheduling. Never fill all available slots with workers waiting to spawn children; preserve reviewer independence when sequential scheduling is needed. Return actual skill load evidence. If a required load was missed, load it and repeat the affected audit before accepting the report. With no concurrency support, run the two independent reads sequentially under the same barrier automatically and report the limitation.
@@ -359,9 +361,9 @@ Only the coordinator marks both final streams completed and `finalGate.phase: pa
 
 ### 4F.4 Finalize Once
 
-In `review` mode, the finalization owner reviews git status/diff, stages only intended files, writes a conventional commit, and pushes under the existing workflow authorization. Preserve unrelated user changes. Only after successful authorized commit/push does it delete the plan and status files; keep review reports. Never repeat an already recorded finalization after resume.
+In `review` mode, the finalization owner reviews git status/diff, stages only intended files, writes a conventional commit, and pushes under the existing workflow authorization. Preserve unrelated user changes. Only after successful authorized commit/push does it execute `final`'s cleanup: preserve final evidence outside `.dominion-logs`, delete this plan's temporary logs and plan/status, verify removal, and record the result using [plan-lifecycle.md](references/plan-lifecycle.md). Keep status until other cleanup succeeds. Never repeat an already recorded commit/push after resume; retry pending cleanup without restarting completed work.
 
-In `codex` mode, do not commit, push, or delete plan/status. Preserve both reports, the working tree, and baseline, then perform the existing Codex `/verify` handoff. If already in Codex and validation is authorized, continue it directly; otherwise state the exact handoff needed. Do not claim Codex validation happened when it did not.
+In `codex` mode, do not commit, push, or delete plan/status at this handoff. Preserve temporary logs, both reports, the working tree, and baseline, then perform the existing Codex `/verify` handoff. Pass the cleanup inventory and receipt path so Codex completes temporary-log deletion after actual validation and authorized finalization. If already in Codex and validation is authorized, continue it directly; otherwise state the exact handoff needed. Do not claim Codex validation happened when it did not.
 
 ### 4F.5 Announce Completion
 
@@ -439,11 +441,11 @@ If any check fails: report the failure, do NOT mark as completed, keep `status: 
 
 ## Phase 6: Plan Complete
 
-When ALL streams (including `final` and `final-security`) have `status: "completed"` and `finalGate.phase` is `passed` for the current snapshot:
+Full completion requires ALL streams (including `final` and `final-security`) to have `status: "completed"`, `finalGate.phase` to be `passed` for the current snapshot, and the retained finalization receipt to confirm authorized finalization and verified cleanup are completed.
 
 If reached via Final Validation, the 4F.5 announcement is the primary output.
 
-If final evidence is missing or stale, automatically resume Phase 4F; do not announce completion or hand routine validation work back to the user.
+If final evidence is missing or stale, automatically resume Phase 4F. If only cleanup is pending, resume 4F.4 from the receipt without repeating a recorded commit/push. If Codex validation is still pending, report the handoff state instead of full completion. Do not hand routine validation or cleanup work back to the user.
 
 ---
 
@@ -476,7 +478,7 @@ Compare stream headers against status file. If new streams were added within the
 9. **ALWAYS** load `auto-web-validation` before any web search, package search, or vendor/library research in `/stream`
 10. The status file is the **single source of truth**
 11. The plan file is **read-only**
-12. Only the finalization owner deletes plan/status in review mode after both siblings pass and the authorized commit/push succeeds; codex mode preserves them
+12. The finalization owner completes `final`'s plan-owned log cleanup after both siblings pass and authorized finalization succeeds; Codex handoff preserves artifacts until validation finishes. Separate discovery-time three-day retention follows `references/plan-lifecycle.md`
 13. Require actual quality skill loads and checks on the resulting work, including design guidance/evidence when applicable
 
 ## Rationalization Prevention

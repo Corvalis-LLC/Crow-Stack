@@ -94,7 +94,7 @@ Primary, verification, and remediation agents all receive the relevant briefing 
 
 ### Step 1: Resolve the plan
 
-Same cascade as `/stream` Phase 1 — check active status files, then recent plans, then ask user.
+First read the installed `stream` skill's `references/plan-lifecycle.md` and apply its automatic three-day plan pruning before discovery. Protect explicitly selected/current work and confirmed live owners; `--dry-run` and explicit read-only requests only report eligible cleanup. Then follow `/stream` Phase 1: check remaining active status files, recent existing plans, and ask only if still ambiguous. Check retained finalization receipts for interrupted cleanup before announcing an already-completed plan is done.
 
 ### Step 2: Ensure status file exists
 
@@ -150,9 +150,10 @@ Execution schedule (from parallelization section):
   Phase 3: Streams 5, 6 (parallel)            — scheduled within host capacity
   Phase 4: Final review/cleanup + security    — 2 concurrent read-only reviewers, then joined remediation
 
-Per-stream agent cap: 3 (primary + verification + remediation)
-  Cap may rise to 4 if dominion dispatches ONE surgical follow-up after remediation fails.
-  Past that, dominion handles inline or escalates to user.
+Per-stream lifecycle roles: primary + verification + remediation
+  At most ONE surgical follow-up after remediation fails; then handle inline or resolve the blocker.
+  Bounded task helpers and required independent reviewers use the shared host pool separately.
+Concurrent worker limit: {effective capacity and runtime/config source}
 
 Estimated: ~4-5 phases
 Starting the validated execution schedule.
@@ -162,11 +163,11 @@ Proceed after the preview in auto mode. Pause here only when the user explicitly
 
 ---
 
-## Capacity for Independent Reviewers
+## Runtime Capacity and Independent Reviewers
 
-Honor the runtime's actual agent limit, counting the orchestrator and all live descendants. An implementation primary normally runs its own Legion waves without nesting, but Impeccable finish review and the security audit's independent candidate/final validation are required evidence-producing roles. They are explicit exceptions to that no-nesting rule and to the generic 3/4 implementation-role accounting; use the upstream bounded scope/budget, record actual agent counts, and never remove independence to meet an unrelated cap.
+Read the installed `auto-workflow` skill's `references/agent-capacity.md` before dispatch. Resolve the live capacity and its counting unit: Claude's current default is 20 running subagents; Codex uses its exposed/configured worker pool, which may count open threads or active turns. Count the orchestrator only when the host's limit includes it. Report the effective worker limit and source in the execution preview. The normal 3/4 implementation roles per stream are a total lifecycle budget, not a global concurrency cap. Fill every available slot with eligible work, queue excess work, and refill immediately on completion. Codex runs the same full workflow at its available capacity.
 
-Before dispatching any design/security-capable wave, reserve at least one free worker slot for these reviewers and schedule their bounded child roles serially within available capacity. If capacity cannot be reserved, a worker returns the exact independent-review assignment and required artifacts to Dominion, then releases its slot; Dominion schedules a fresh reviewer and resumes the implementation owner with its findings. Never launch a wave that occupies all available slots while each worker waits to spawn a child. In a four-slot runtime, the orchestrator plus two final readers leaves one independent-review slot; queue security/design child checks through that slot. If a runtime cannot support two readers plus mandatory independence, phase the independent passes sequentially and disclose the concurrency limitation. Do not manufacture an independent review when no fresh reviewer can run.
+An implementation primary normally runs its own Legion phases without nesting; when a phase has independent tasks and spare capacity, it returns bounded task packets for Dominion to dispatch under the shared capacity contract. Impeccable finish review and security candidate/final validation remain required independent roles outside the generic implementation-role budget. Prefer coordinator-brokered reviews: a worker returns the exact review assignment and artifacts, releases capacity under the host's counting rules, and Dominion schedules a fresh reviewer before resuming the owner. Reserve capacity only for resident-parent checks or known fresh reviewers in an open-thread pool with no release tool, as defined in the shared contract. Do not reserve a hypothetical reviewer slot throughout ordinary implementation or fill the pool with parents waiting for children. In a four-total-slot runtime, use all three worker slots for independent implementation; the two final readers can use two slots with the third available for their required child review. Smaller pools use sequential independent passes under the same final barrier.
 
 ## Phase 2: Execute Phases
 
@@ -193,9 +194,9 @@ The `## Parallelization` "phases" remain the mental model for the preview and th
 
 ### 2.2 Dispatch Primary Stream Agents (Agent Tool, Background)
 
-For each eligible stream, dispatch a **background Agent-tool agent** with the pre-computed briefing packet. Honor reserved reviewer capacity before dispatch. No subprocess, no stdio plumbing, no log-tail parsing.
+For each eligible stream that fits the available worker pool, dispatch a **background Agent-tool agent** with the pre-computed briefing packet. Honor only currently necessary reviewer reservations. No subprocess, no stdio plumbing, no log-tail parsing.
 
-**Mechanism:** use Claude's Agent tool with `subagent_type: "general-purpose"` and `run_in_background: true`, or Codex's native collaboration spawn/wait tools. Preserve ownership boundaries and reserved reviewer capacity. Dispatch the eligible streams that fit in one parallel wave; queue the remainder until a slot is available.
+**Mechanism:** use Claude's Agent tool with `subagent_type: "general-purpose"` and `run_in_background: true`, or Codex's native collaboration tools. Preserve ownership boundaries. Dispatch every eligible assignment that fits now; queue the remainder and refill slots as each worker finishes, without waiting for the whole wave. Collect evidence and close/release completed agents when the host counts open threads; hosts that count only active turns free capacity when those turns finish. Capacity errors queue work until a slot is released, without repeated spawn attempts or bypasses.
 
 **Prompt template — Primary Stream Agent:**
 
@@ -237,7 +238,7 @@ Do NOT edit files outside this list unless the plan's cross-stream intake explic
 
 ## Execution
 
-Implement the stream's sub-tasks using TDD where applicable. If the stream has `Legion: Yes` annotation, execute the waves SEQUENTIALLY within your own turn loop (do not dispatch further implementation sub-agents; required independent design/security reviewers use the Capacity for Independent Reviewers protocol). Test wave first, then impl wave, then dependent wave.
+Implement the stream's sub-tasks using TDD where applicable. With `Legion: Yes`, preserve Test, Implement, and Dependents phase order. When a phase has bounded independent tasks, return their task packets to Dominion for dispatch into spare slots under `auto-workflow/references/agent-capacity.md`; do not independently overbook the pool. Transfer exact file ownership and stop editing delegated files. Return a checkpoint and release your capacity if only waiting, then resume for integration. Otherwise perform the work locally. Required independent design/security reviews use the Runtime Capacity and Independent Reviewers protocol.
 
 After each cluster of file edits, run `pnpm exec vitest run <touched files>` and the type checker. Fix issues before the next cluster.
 
@@ -278,15 +279,15 @@ No narration beyond the structured fields.
 
 ### 2.3 Await Agent Completion
 
-Each Agent-tool call with `run_in_background: true` notifies dominion automatically when the agent finishes. Do NOT sleep, poll, or chain `ScheduleWakeup` calls waiting for agents — the notification fires on its own.
+Claude background Agent calls notify Dominion on completion. On Codex, use the available native wait/status tools and returned notifications; do not wait for a Claude-specific event that host does not emit. Avoid shell polling or scheduled wakeups. After each completion, collect the result, release capacity according to the host's counting rules, and dispatch newly eligible work immediately.
 
-When a notification arrives:
+When a result arrives:
 
-1. Read the agent's returned SUMMARY
+1. Read the agent's returned SUMMARY. A checkpoint requesting task helpers or an independent reviewer queues those assignments and keeps the stream in progress; it does not unlock downstream streams. Helper completion returns to the stream owner for integration. Continue the completion steps below only after the primary returns its final integrated result
 2. Check the returned evidence and actual artifacts, then record the stream's completion in `docs/plans/{slug}.status.json` as the single writer; leave `settledAt: null` until verification/remediation finishes
 3. Run `git diff --stat` to see what files actually changed
 4. Record the structured deferrals from the agent's return (they feed 2.4)
-5. If the completed agent was a **primary**: in the SAME response, (a) dispatch that stream's verification agent (2.3.5), AND (b) re-run the 2.1 eligibility scan and dispatch every newly-unblocked downstream primary. The just-finished stream's verification/remediation runs **concurrently** with those downstream primaries — do NOT wait for the phase, and do NOT wait for this stream's own verification before starting an artifact-only downstream.
+5. If the completed agent was a **primary**: immediately enqueue its verification agent (2.3.5) and every downstream primary newly eligible under 2.1. Dispatch as many as fit the currently available capacity, prioritizing required verification; queue the rest. Verification/remediation and downstream primaries can overlap when slots permit. Do not impose a phase-settle barrier or wait for upstream verification merely to make a downstream eligible.
 
 ```
 [03:45:12] Phase 2 — 3 primary agents dispatched
@@ -472,10 +473,10 @@ REMEDIATION_RESULT
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Gate: pass; no new blockers                                            | Set `settledAt` after checking the completed verification/remediation evidence. Proceed to the next eligibility scan.                     |
 | Gate: fail; narrow scope (1–3 files, well-understood)                  | **Dominion handles inline** using its own Read/Edit/Bash. No additional agent. |
-| Gate: fail; broad scope where inline burn would be costly              | Dispatch ONE more surgical agent with explicit, narrow prompt. Raises per-stream cap to 4. |
+| Gate: fail; broad scope where inline burn would be costly              | Dispatch ONE more surgical agent with an explicit, narrow prompt. This is the single allowed follow-up role. |
 | New blockers surfaced (plan-level or cross-stream)                     | Route the finding to its owner and resolve within the existing authorized scope and bounded agent budget; escalate with evidence only if a material unresolved decision remains.  |
 
-Per-stream agent cap is **3 in the normal path** (primary + verification + remediation) and **4 at maximum** (one surgical follow-up after remediation gate fails). Past 4, dominion keeps judgment in the loop — no infinite loops, no silent budget burn.
+The normal per-stream lifecycle is primary, verification, and remediation, with **one surgical follow-up at most** after a failed remediation gate. This bounds the retry loop; it is not a global concurrency limit or a ban on bounded implementation task packets and required independent reviewers. Count every live role/helper against host capacity and include them in actual dispatch totals. Helpers must not bypass the follow-up limit by relabeling repeated failed remediation as new tasks.
 
 ### 2.5 Continuous Scheduling & Late-Reconciliation
 
@@ -523,11 +524,11 @@ Skills never sit inert. Each layer has a specific job: primary shapes design, se
 This phase always runs, even when implementation needed no remediation. Read the installed `stream` skill's `references/status-schema.md` and use its canonical snapshot/join protocol; Phase 2 primary-completion pipelining and generic worker status rules do not apply to these reserved siblings.
 
 1. **Settle and prepare.** Wait for all implementation verification, remediation, and late contract deltas. Run full project checks and perform any pre-snapshot fixes through one owner. Preserve the original `reviewBaseline`, capture committed/staged/unstaged/untracked changes and context in one immutable manifest, and stop source writers.
-2. **Dispatch both readers in the same wave.** Claim `final` and `final-security` as siblings, each depending on all implementation streams. Give both the same baseline, snapshot ID, complete change manifest, and exclusive artifact roots and returned report paths. Each worker must first load its own `auto-chat-quality`, `auto-code-quality`, and `auto-writing-quality`, plus applicable design/domain skills. The security reader also loads `auto-security-quality`. Include the actual resolved skill manifest and demand load evidence in both prompts.
+2. **Dispatch both readers in the same wave.** Claim `final` and `final-security` as siblings, each depending on all implementation streams. Give both the same baseline, snapshot ID, complete change manifest, and exclusive artifact roots and returned report paths. Each worker must first load its own `auto-chat-quality`, `auto-code-quality`, and `auto-writing-quality`, plus applicable design/domain skills. The security reader also loads `auto-security-quality`. Include the actual resolved skill manifest and demand load evidence in both prompts. Assign `final` the temporary-log cleanup inventory from `stream/references/plan-lifecycle.md`; it returns exact plan-owned paths for deletion after the joined finalization barrier.
 3. **Review concurrently without source mutation.** `final` performs the existing classic `review` findings pass in review mode, or the broad Claude Cleanup Review in codex mode (no `codex-validation` yet). `final-security` audits the entire captured change set and adjacent trust boundaries with `auto-security-quality`. Workers can write only their assigned artifact roots (the security wrapper uses its permitted external run directory by default and returns all six-phase reports/validators); neither edits shared status, fixes code, commits, pushes, cleans up, or hands off. Functional source-mutating checks use isolated copies. Security target execution additionally requires the upstream OS-enforced sandbox; otherwise use source review and record that exact validation limit. Preserve security independent fresh-agent checks and use the capacity reservation/broker above. If parallel workers are unavailable, perform both independent passes sequentially under the same barrier and record that limitation.
 4. **Join and fix.** Wait for both reports. Validate their skill loads, coverage, and snapshot fingerprints. Present combined findings, then assign one remediation owner to apply supported authorized fixes after readers have finished. No concurrent reviewer-fixer races. Preserve explicit review-only limits and escalate genuine blockers under the existing policy.
 5. **Refresh both gates.** Re-run affected checks, capture a new snapshot, and obtain fresh evidence from both reviewers on the fixes and regression surface. Missing/incomplete audits or stale snapshots cannot pass. Dominion alone marks both streams completed and `finalGate.phase: passed` once both reports pass on the same current snapshot.
-6. **Finalize once.** In `review` mode, one finalization owner follows the existing authorized commit/push/plan+status cleanup flow, preserving unrelated user work and retaining audit reports. In `codex` mode, preserve the working tree, plan, status, baseline, and both reports; retain the existing Codex `/verify` handoff. If already running in Codex with authority to validate, continue `/verify` directly. Otherwise report the handoff honestly. Never claim the Claude cleanup or security report replaces Codex validation.
+6. **Finalize once and clean the logs.** In `review` mode, the coordinator performs or resumes `final` as the sole finalization owner after both readers stop. Complete authorized commit/push, retain audit evidence outside `.dominion-logs`, then delete this plan's temporary logs and plan/status using `stream/references/plan-lifecycle.md`. Verify removal and record cleanup in the retained receipt; pending cleanup prevents a full-completion claim. Preserve unrelated user work and other plans' logs. In `codex` mode, preserve the working tree, plan, status, temporary logs, baseline, both reports, and cleanup inventory for the existing Codex `/verify` handoff; Codex completes cleanup after actual validation and authorized finalization. If already running in Codex with authority to validate, continue `/verify` directly. Otherwise report the handoff honestly. Never claim the Claude cleanup or security report replaces Codex validation.
 
 A later mutation invalidates evidence for affected scope and requires fresh checks/reviews before commit, push, cleanup, or Codex handoff. Do not replay a recorded commit/push after resume. The final pair has two initial reviewers; remediation and re-review use the existing bounded follow-up policy, not a separate unbounded audit loop.
 
@@ -562,8 +563,8 @@ Phase breakdown:
   Phase 3 (Streams 5,6):       9 min   (parallel; both clean)
   Phase 4 (Review + Security): 7 min (concurrent reads, joined remediation)
 
-Plan and status files cleaned up by Final Validation.
-Briefing packets and logs: docs/plans/.dominion-logs/
+Plan, status, and plan-owned temporary logs cleaned up by the finalization owner.
+Final reports and cleanup receipt: docs/plans/.dominion-audit/{slug}/
 ```
 
 ### Codex Handoff
@@ -586,7 +587,8 @@ Next step:
 Preserved for Codex:
   - docs/plans/2026-04-22-feature-overhaul.md
   - docs/plans/2026-04-22-feature-overhaul.status.json
-  - docs/plans/.dominion-logs/
+  - docs/plans/.dominion-logs/{slug}/ (temporary; remove after Codex finalization)
+  - docs/plans/.dominion-audit/{slug}/ (retained evidence and cleanup receipt)
 ```
 
 ### Failure
@@ -604,7 +606,7 @@ Findings:
   - migrations/0042: collides with existing migration number 0042
 
 Status file preserved: docs/plans/2026-04-22-feature-overhaul.status.json
-Briefings + agent returns: docs/plans/.dominion-logs/
+Briefings + agent returns: docs/plans/.dominion-logs/{slug}/
 
 Needed to continue: [specific missing decision or external-state change]
 After it is resolved, /dominion resumes from the preserved status.
@@ -617,19 +619,22 @@ After it is resolved, /dominion resumes from the preserved status.
 ### Artifacts directory
 
 ```
-docs/plans/.dominion-logs/
+docs/plans/.dominion-logs/{slug}/
   briefing-stream-1.json          # The briefing packet dominion built
   briefing-stream-2.json
   ...
   return-stream-1-primary.md      # What the primary agent returned
   return-stream-1-verify.md       # What the verification agent returned
   return-stream-1-remediate.md    # What the remediation agent returned (if dispatched)
-  {slug}/final/{snapshotId}/review.md    # independent review/cleanup report
-  {slug}/final/{snapshotId}/security.md  # coordinator summary linking external security run artifacts
-  {slug}/final/{snapshotId}/manifest.json # shared immutable input manifest
+  stream-1.log                  # fallback subprocess output, if used
+docs/plans/.dominion-audit/{slug}/
+  {snapshotId}/review.md         # retained independent review/cleanup report
+  {snapshotId}/security.md       # retained links to external security run artifacts
+  {snapshotId}/manifest.json     # shared immutable input manifest
+  finalization.json             # retained commit/push/cleanup receipt
 ```
 
-Create this directory at dominion start. Dominion writes briefing packets and collects agent returns here. These are the audit trail — they persist until the user deletes them manually.
+Create the plan-owned temporary directory at dominion start and record its path in status. Dominion writes briefing packets and collects agent returns there. Final evidence goes in the separate retained audit directory. Follow the installed `stream` skill's `references/plan-lifecycle.md` for ownership, legacy artifact migration, expiry, and cleanup.
 
 ### Retry handling
 
@@ -640,7 +645,7 @@ return-stream-3-primary.md → return-stream-3-primary.attempt-1.md
 
 ### Cleanup
 
-Artifacts are NOT deleted by Final Validation (unlike the plan and status files). Intentional — they're the audit trail.
+The `final` stream owns temporary-log cleanup. It inventories paths while reviewing, then the sole finalization owner deletes them after both final gates and the selected mode's finalization succeed. Retain final reports, manifests, baseline evidence, the cleanup receipt, and external security outputs. Do not leave completed-run logs for the user to delete manually. Codex handoffs keep temporary logs until actual Codex finalization; failed or active runs keep them unless the separate three-day plan-retention policy retires an abandoned plan. Verify removal and report unresolved or ambiguous legacy paths.
 
 ---
 
@@ -661,9 +666,10 @@ Use the installed `stream` skill's `references/status-schema.md` Concurrency rul
 3. Already-completed implementation streams are skipped; normalize legacy final state and revalidate both final reports against the current snapshot before trusting completion
 4. `in_progress` streams are flagged (user decides: wait or take over)
 5. Pending streams with met dependencies are re-dispatched
-6. Dominion re-builds briefing packets on resume — they're not persisted as source-of-truth, just as audit artifacts
+6. Dominion re-builds briefing packets on resume; retained plan/status and audit evidence remain the source of truth
+7. A retained finalization receipt resumes pending cleanup without replaying a completed commit/push, even if plan/status removal was interrupted
 
-Safe to interrupt and restart at any time.
+Resumption is available while the plan is retained. Discovery prunes plans older than three days unless they are explicitly selected for continuation or have confirmed live owners.
 
 ---
 
@@ -692,7 +698,7 @@ Phase 4 (after all implementation has settled):
 
 Agent count: implementation primary/verify/remediate roles + 2 final readers
 Follow-up budget: bounded remediation/re-review under the existing cap
-Max concurrent: bounded by the host limit, with a reserved/brokered independent-review slot
+Max concurrent: {effective worker limit} workers ({runtime/config source}); fill available slots, broker independent reviews
 ```
 
 ---
@@ -705,7 +711,7 @@ The historic `claude -p` headless mechanism remains available for users who expl
 cd {project_root} && claude -p "/stream {plan_file} --claim {stream_number}" \
   --model sonnet \
   --allowedTools "Bash,Read,Write,Edit,Glob,Grep,Skill,Agent" \
-  < /dev/null > docs/plans/.dominion-logs/stream-{id}.log 2>&1
+  < /dev/null > docs/plans/.dominion-logs/{slug}/stream-{id}.log 2>&1
 ```
 
 **Known issue:** headless streams that run `pnpm test <files> | tail -N` as their verification gate have been observed to hang indefinitely when a new test file in the stream's own diff leaks a timer/promise/connection. `tail` buffers until EOF; if node never exits, the pipeline never unblocks. This was the original motivation for moving to Agent-tool bg-mode.
@@ -719,18 +725,18 @@ If forced to use headless, ensure the spawned `/stream` uses `pnpm exec vitest r
 1. **ALWAYS** show the execution preview and proceed in auto mode; require a routine confirmation only when the user explicitly requested that checkpoint
 2. **ALWAYS** pre-compute domain briefing packets and include mandatory first-step worker quality skill loads with resolved paths and returned evidence
 3. **ALWAYS** use the runtime's native agent facility (Claude Agent with `run_in_background: true`; Codex collaboration agents). Never use headless `claude -p` by default
-4. Dispatch eligible primaries concurrently within actual host capacity; keep required reviewer slots free and queue the rest
+4. Fill actual host capacity with eligible work and refill on each completion; broker independent reviews and reserve only the concrete capacity required by the shared contract, including fresh-review slots in an unreleasable open-thread pool
 5. **ALWAYS** run verification (2.3.5) for EVERY stream — no trusted streams
 6. **ALWAYS** run remediation (2.4) if verification finds anything, even quality-only
 7. **ALWAYS** run a lightweight remediation with Input 3 (free audit) even when verification finds nothing — it's Layer 4 insurance
 8. **ALWAYS** serialize shared status writes in dominion; workers return data and write only inside exclusive artifact roots
-9. **NEVER** exceed 3 implementation-role agents per stream normally, 4 after a failed re-gate; required fresh design/security evidence roles use the explicit capacity/budget protocol and are separately accounted
+9. Keep the primary/verification/remediation lifecycle and at most one surgical follow-up; bounded task helpers and required independent reviewers are separately accounted but share the host's concurrency pool
 10. **NEVER** pipe `pnpm test` output through `| tail` / `| head` / `| grep` in agent prompts — the pipe hangs on leaky teardown
 11. **ALWAYS** load `auto-web-validation` into dominion's own context before any web research or vendor/library lookup
 12. In either final mode, run `final` and `final-security` together, join/fix/recheck, and require both to pass on the current snapshot. Codex mode then preserves artifacts for `/verify`
-13. Trust the Agent tool's completion notification; do not sleep/poll for agent completion
-14. Briefing packet artifacts persist after cleanup; they're the audit trail
-15. **PIPELINE implementation only on primary completion, not on phase settle.** Both reserved final streams wait for full implementation settle. The moment a primary lands, dispatch its verifier AND every newly-unblocked downstream primary in the same beat. Do not wait for a stream's own verification/remediation before starting an artifact-only downstream. The bet: most work is correct first-pass.
+13. Use Claude completion notifications or Codex's native wait/status tools; collect results and refill available slots without shell polling or scheduled wakeups
+14. `final` owns verified temporary-log deletion after joined finalization; retain final evidence and the receipt outside `.dominion-logs`. Apply automatic three-day plan retention during discovery
+15. **PIPELINE implementation only on primary completion, not on phase settle.** Both reserved final streams wait for full implementation settle. The moment a primary lands, enqueue its verifier and all newly eligible downstream primaries, then fill available slots with priority for required verification. Lack of capacity queues work; upstream verification does not add a dependency barrier.
 16. **Do NOT gate a downstream on an upstream's verification/remediation — even on a shared file.** Overlap is safe: verifiers are read-only, and file ownership passes to the downstream on dispatch (an upstream remediator that finds an issue in a handed-off file REPORTS it downstream via 2.5, it does not edit it). The only hard serialization is **two PRIMARY agents editing the same file in the same wave** — the plan's file-ownership matrix sequences those. Over-gating on "shared file + still settling" throws away the pipeline win; don't.
 17. **Route late upstream remediation deltas into the affected downstream's remediation** (Input 2). Pipelining trades a possible late contract shift for wall-clock; this is how that shift gets reconciled instead of lost.
 

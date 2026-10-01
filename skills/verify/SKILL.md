@@ -30,9 +30,11 @@ In auto mode, fix supported in-scope findings without asking for routine confirm
 
 ### Prefer the active plan when one exists
 
+Before checking the folder, read the installed `stream` skill's `references/plan-lifecycle.md` and prune eligible plans older than 72 hours with their companions and attributable logs. Protect explicit current/continuation paths and confirmed live owners; honor read-only/dry-run scope. Check retained finalization receipts for pending cleanup, then resolve only surviving plan candidates.
+
 Resolve in this order:
 
-1. Current, unarchived `docs/plans/*.status.json` companions with incomplete streams or migration-needed/missing/stale final-pair evidence, including legacy all-completed status; honor explicit continuation context and do not reactivate a recorded finalized/archive plan merely because its schema is old
+1. Current, unarchived `docs/plans/*.status.json` companions with incomplete streams, migration-needed/missing/stale final-pair evidence, or pending Codex validation/finalization/cleanup in status or the retained receipt. A `codex` handoff stays active after both sibling reports pass until actual Codex validation and finalization are recorded. Honor explicit continuation context and do not reactivate recorded finalized/archived/expired plans merely because their schema is old
 2. Most recent `docs/plans/*.md`
 3. If no plan exists, review the current git working tree
 
@@ -197,6 +199,7 @@ In auto mode or when fixes have already been requested:
 Before closing:
 - re-run checks after fixes
 - for an active plan, confirm both final reports pass on the same current snapshot; stale or incomplete security evidence blocks final completion
+- when this pass completes an authorized plan finalization, execute `final`'s pending temporary-log cleanup using the installed `stream` skill's `references/plan-lifecycle.md`; retain final evidence and verify deletion before marking cleanup complete. Keep logs for partial reviews, unresolved findings, pending commit/push requirements, or an incomplete handoff
 - confirm whether the tree is verification-clean
 - summarize what was fixed and what remains, if anything
 

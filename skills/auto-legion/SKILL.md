@@ -15,12 +15,12 @@ Legion annotations in plans (`**Legion:** Yes — T:3 → I:3 → D:2`) are **mo
 
 | Plan declares                   | Manual `/stream` executes as...                                                                                              | Dispatched `/dominion` primary agent executes as...                                                                              |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `Legion: Yes — T:4 → I:4 → D:1` | Spawn 4 test sub-agents in parallel, then 4 impl sub-agents, then 1 integrator. User-driven session with background fan-out. | **Sequential phases inside the primary agent's own turn loop** — finish tests first, then impls, then integration. No nested Agent dispatch. |
+| `Legion: Yes — T:4 → I:4 → D:1` | Dispatch ready test tasks within host capacity, then implementation tasks, then integration. | Preserve phase order; return bounded independent task packets to Dominion for dispatch into spare slots, or execute locally when parallelism would not help. Resume the primary for integration. |
 | `Legion: No`                    | Single-threaded work in the user's session.                                                                                  | Single-threaded work in the primary agent's turn loop.                                                                           |
 
-Why no nesting under dominion: dominion-in-Agent-mode IS plan-level legion already. The orchestrator dispatches a legion of background Agent-tool primaries (one per stream), with phase gates as wave boundaries. A dispatched primary that then tries to dispatch more legion sub-agents is nesting legions for no gain — the waves are already parallelized at the outer layer.
+Dominion owns the shared worker pool and file assignments. Primary agents return task packets to that coordinator so a plan with few ready streams can still use spare capacity. A primary never edits files while a helper owns them, and a checkpoint does not count as stream completion.
 
-Everything below assumes **manual `/stream` mode** (the orchestrator is the user's main session). For the dominion interpretation, treat the "dispatch" steps as "run these phases sequentially in your own context, verifying between phases, without calling the Agent tool."
+Everything below describes the coordinating role. Under Dominion, return the dispatch assignments to Dominion, release capacity when only waiting, and resume to integrate and verify the phase results. Use the host-specific release rules in `auto-workflow/references/agent-capacity.md`.
 
 
 ## Why Legion Works
@@ -131,11 +131,11 @@ Within each wave type, group tasks that can run in parallel:
 
 ### Step 3: Size the Waves
 
-Each wave should have **2-5 agents**. More than 5 increases orchestrator verification burden. Fewer than 2 isn't worth the legion overhead.
+Size dispatches from the host's available capacity and the number of independent tasks. Do not impose a fixed five-agent ceiling. Keep each assignment bounded so the coordinator can verify its output.
 
 If a wave has only 1 task, the orchestrator can execute it directly instead of dispatching an agent.
 
-If a wave has more than 5 parallelizable tasks, split into sub-waves (T1, T2) with verification between them.
+If a phase has more ready tasks than slots, queue the excess and refill slots as workers finish. Keep the required Test/Implement/Dependents/Refactor verification barriers, but do not add an extra barrier just because a batch filled the pool.
 
 ## Dispatching Agents
 
@@ -149,7 +149,7 @@ Agent(
 )
 ```
 
-**Always dispatch all agents in a wave simultaneously** — put all Agent tool calls in a single message.
+Read the installed `auto-workflow` skill's `references/agent-capacity.md`. Dispatch the ready assignments that fit the host's available worker pool together using native Claude or Codex tools. Queue excess work and refill slots on completion without waiting for the whole wave. Preserve phase dependencies and do not create nested workers that overbook the coordinator's pool.
 
 ### Prompt Template
 

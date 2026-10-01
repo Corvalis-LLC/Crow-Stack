@@ -22,6 +22,8 @@ Read the wrapper first and follow its routed upstream references. Do not indepen
 
 ## Delegation is explicit
 
+The coordinating agent reads [agent capacity and dispatch](agent-capacity.md) before spawning workers. Resolve the actual host limit and fill available slots with eligible work; a per-stream role budget is not a global concurrency cap. Pass the remaining capacity and any child-review assignment back through the coordinator rather than letting descendants overbook the shared pool.
+
 Every primary, test, implementation, integration, verification, review, security-validation, and remediation agent receives the applicable required skill names and resolved paths in its prompt. Parent loading does not load a child's context. Agents that read or edit code **must load `auto-code-quality` themselves**; agents that write prose **must load `auto-writing-quality` themselves**. Include applicable Impeccable commands and security instructions too.
 
 The worker's first step is to read/invoke the required skills. Its result records which entrypoints and routed references were loaded, what work they governed, and verification evidence. The coordinator checks the tool/read evidence when available; a name in an output checklist is not proof of loading. If a required load was missed, return the task for loading and a fresh affected-work audit before accepting completion. Do not rerun unrelated work.

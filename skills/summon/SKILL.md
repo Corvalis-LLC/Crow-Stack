@@ -42,6 +42,8 @@ Hard rules:
 - Only fall back to direct exploration if recon is unavailable or its output is invalid for the current repo
 - Do not claim files, symbols, packages, subsystems, or programs are missing before recon has been checked when available
 
+Whenever you check `docs/plans/` or prepare to write a plan, read the installed `stream` skill's `references/plan-lifecycle.md` and apply its automatic retention pass first. Delete eligible plans older than 72 hours with their matching status and attributable temporary logs; protect the explicitly selected/current plan and confirmed live owners. Run this only after intent is established, and honor explicit read-only/dry-run scope. Retention is housekeeping, not an extra user checkpoint.
+
 In short: **path pick → user intent → recon (targeted) → targeted reads → proceed**
 
 ## Phase 1: Foundation
@@ -119,7 +121,7 @@ When uncertain, lean toward running research — a 2–3 minute parallel researc
 
 **Dispatch pattern (parallel background agents):**
 
-For each distinct research question the ask generates, dispatch ONE background research agent via Claude's Agent tool (`subagent_type: "general-purpose"`, `run_in_background: true`) or Codex's native collaboration agents. Dispatch all of them in a single message so they run concurrently.
+For each distinct research question the ask generates, dispatch ONE background research agent via Claude's Agent tool (`subagent_type: "general-purpose"`, `run_in_background: true`) or Codex's native collaboration agents. Read the installed `auto-workflow` skill's `references/agent-capacity.md`; dispatch the questions that fit in the available pool together and refill slots as results arrive. Queue excess questions instead of exceeding the host limit.
 
 Typical questions to split across agents (one question per agent):
 
@@ -220,7 +222,7 @@ Follow `auto-workflow`'s planning flow, now informed by recon AND the research s
 1. Re-frame the work (reflect the user's ask back in structured form: goal, scope, constraints, non-goals, and any evidence-backed industry-pattern adjustments from Step 3). Continue unless a material unresolved choice blocks the work.
 2. Brainstorm the approach (start from recon output, indexed by the user's ask — use dependency graph for stream boundaries, hotspots for complexity assessment, entry points for architecture understanding; only supplement with Glob/Grep/Read after recon). Apply the supported industry patterns from Step 3.
 3. Produce the plan. If Step 3 surfaced principled divergences from industry defaults, include a short **Design Decisions** section in the plan recording each divergence and its rationale, with the canonical source links research provided.
-4. **Write it to `docs/plans/YYYY-MM-DD-<slug>.md` before proceeding**
+4. Apply the shared `stream/references/plan-lifecycle.md` retention pass, then **write the plan to `docs/plans/YYYY-MM-DD-<slug>.md` before proceeding**
 5. Present the plan and proceed through the gates; pause for sign-off only when the user requested interactive planning
 
 The plan should stay at the *what/why* level. Standards compliance comes next.
@@ -522,7 +524,7 @@ For non-legion streams:
 **Legion:** No — single complex migration requiring sequential steps
 ```
 
-Legion annotations are **mode-agnostic** — they describe the stream's decomposition shape, not its execution mode. Manual `/stream` interprets `Legion: Yes` as "spawn sub-agents per wave"; dispatched `/dominion` primary agents interpret the same annotation as "run these waves sequentially inside your own turn loop, no nested agent dispatch." See `auto-legion` SKILL for the interpretation table.
+Legion annotations are **mode-agnostic**: they describe decomposition and phase dependencies. Manual `/stream` dispatches ready tasks within host capacity. A Dominion primary can execute locally or return bounded independent task packets for Dominion to dispatch into spare slots, then resume for integration. Keep phase order and centralized file ownership; do not overbook the pool with uncoordinated nested dispatch. See `auto-legion` for the interpretation table.
 
 **Step 5: Write to Plan**
 
@@ -669,6 +671,7 @@ Summon is the primary entry point; Dominion is the secondary autonomous executor
 - Every worker actually loads applicable chat/code/writing/design quality skills in its own context and returns load evidence.
 - `stream` and `dominion` inject two sibling final streams: `final` and `final-security`. Both depend on all implementation streams, neither depends on the other, and both wait for implementation verification/remediation to settle.
 - They review the same immutable snapshot concurrently: `final` uses classic review or Claude cleanup according to `## Final Validation Mode`; `final-security` uses `auto-security-quality`. After both reports return, one owner fixes findings and obtains fresh review evidence.
+- `final` also owns cleanup of plan-specific temporary Dominion logs after joined validation and authorized finalization. Preserve final evidence and receipts separately; Codex handoffs pass this cleanup responsibility through to actual Codex completion. Follow `stream/references/plan-lifecycle.md`.
 - Both must pass on the current snapshot before review-mode commit/push/cleanup or the Codex validation handoff. Codex mode preserves plan/status and audit reports. The installed `stream` skill's `references/status-schema.md` defines migration, snapshots, and concurrency. Authors need not add final stream headers.
 
 For plans without stream headers, execute the authorized task list directly with the same quality routing; do not manufacture a new-session paste requirement. Keep plan-only/manual boundaries when explicitly requested.
@@ -692,7 +695,8 @@ Immediately load `auto-code-quality` on entering Path B. Use the supplied ask to
 3. **If the ask is substantial enough to warrant industry-pattern research** (new package / new auth or security layer / new feature crossing multiple modules / schema evolution / new API surface / new infrastructure — same triggers as Path A Step 3), dispatch the same background research agents described in Path A Step 3 before writing any code. Synthesize the findings and give the user the same "confirm as-is / consider adjusting / worth discussing" summary. No-plan mode does not mean skipping research — it means skipping the written plan. Research still runs when the ask warrants it.
 4. Determine the relevant auto-* skills from the actual task plus the gathered repo context. Do a real applicability sweep; do not stop at the obvious ones.
 5. **Always load `auto-code-quality` and the relevant auto-* skills before implementation begins.** Apply automatic writing and Impeccable routing whenever the actual work triggers them. This is mandatory in No Plan mode.
-6. Keep `auto-workflow` loaded and begin execution unless a real open question still blocks safe progress.
+6. Keep `auto-workflow` loaded and read its `references/agent-capacity.md`. Split independently writable implementation, research, tests, or prose work into bounded worker assignments with exclusive ownership and required skill paths. Fill the host's available worker slots, including all three when a Codex session exposes three workers or up to the default 20 on Claude when enough independent work exists. Honor runtime/config overrides, queue excess work, and refill on each completion. Keep a tiny indivisible task local; no written plan or delegation-approval question is needed.
+7. Integrate worker results, verify actual quality-skill loads and project behavior, and apply supported fixes. Broker fresh review assignments through the coordinator when child capacity is unavailable. Begin and continue automatically unless a real open question blocks safe progress.
 
 Hard rule: No Plan mode is not "skip context and start coding," AND it is not "run recon the moment the user says 'no plan'." The correct sequence is:
 

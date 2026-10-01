@@ -131,6 +131,8 @@ The five upstream bundles are pinned to specific revisions, with source details 
 
 A larger plan is divided into streams, each with its own tasks, file ownership, dependencies, and required skills. Dominion dispatches work that can run independently, verifies the results against the plan, and sends supported findings through remediation. It prevents two primary agents from editing the same file at once.
 
+Dominion and Summon's no-plan path fill the available agent slots with independent work and start the next task as soon as one finishes. Claude Code currently defaults to 20 running subagents. Codex follows its session and configuration limits, so a session with three worker slots uses all three, and a larger pool can do more. The workflow keeps the same quality checks on both hosts. [Claude Code limits](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit) · [Codex settings](https://learn.chatgpt.com/docs/agent-configuration/subagents#global-settings)
+
 The plan's `.status.json` companion records progress so execution can resume across sessions. You don't need to open a terminal for every stream or keep a mental list of which agent is waiting on which change. Single-stream plans use the supporting workflow internally, without asking you to learn another command.
 
 Once implementation and its follow-up fixes settle, two final streams review the same recorded snapshot:
@@ -142,6 +144,8 @@ These are sibling streams and can run concurrently when the host has capacity. B
 
 The default final-validation mode is `review`. After both final checks pass, it follows the workflow's commit/push and plan-cleanup steps within the user's authorization. If you explicitly choose `codex`, it preserves the working tree, plan/status files, and review evidence for the Codex `/verify` handoff. When the current session can perform Codex validation, it continues directly. Otherwise, it preserves the work for that handoff and reports any runtime blocker.
 
+The final cleanup stream also removes that plan's temporary Dominion logs once finalization succeeds. Final audit reports and the completion receipt stay separate. Whenever the workflow checks `docs/plans/`, it deletes plans last modified more than three days ago, their status companions, and attributable temporary logs. A plan explicitly selected for continuation or owned by a live run stays protected.
+
 <details>
 <summary>Planning and execution internals</summary>
 
@@ -149,7 +153,7 @@ Summon checks every plan against applicable standards and existing code it can r
 
 Skill assignments live in the plan's `## Required Skills` section and flow into the status file's `baselineSkills` field. Mandatory quality skills also apply to the actual work when an older plan omits them. The shared rules live in [quality-routing.md](skills/auto-workflow/references/quality-routing.md).
 
-`auto-legion` breaks suitable streams into Test, Implement, Dependents, and optional Refactor phases. Manual `stream` sessions can dispatch agents within a phase. Under Dominion, a primary agent runs those phases in its own context; Dominion coordinates parallelism across streams.
+`auto-legion` breaks suitable streams into Test, Implement, Dependents, and optional Refactor phases. Manual `stream` sessions can dispatch agents within a phase. Under Dominion, a primary can return independent task assignments for Dominion to run in spare slots, then resume to integrate their results. Dominion coordinates parallelism and file ownership across the whole plan.
 
 The [status schema](skills/stream/references/status-schema.md) defines dependencies, migration, review snapshots, evidence, and concurrency. Older plans retain their progress when normalized, but an old completed final stream does not count as evidence that the new security review ran.
 
