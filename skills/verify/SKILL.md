@@ -22,20 +22,27 @@ Use this when the user wants the stronger manual validation style rather than a 
 
 Default behavior: **begin review immediately**. Do not ask setup questions unless multiple active plans make auto-resolution ambiguous.
 
+Immediately load `auto-chat-quality`, `auto-writing-quality`, and `auto-workflow` with its `references/quality-routing.md`; load `auto-code-quality` before any code inspection/review/fix. Use Skill on Claude or resolve/read the installed `SKILL.md` on Codex, with relative references resolved from that skill directory. New/changed design loads `auto-design-quality`; plain unchanged established reuse is exempt. Each delegated reviewer/fixer must actually load applicable skills in its own context and return evidence. Missing loads require a fresh audit before accepting output.
+
+In auto mode, fix supported in-scope findings without asking for routine confirmation; honor explicit review-only/manual scope and actual permission boundaries. Skill subcommands and available checks are executed by the agent, not assigned back to the user.
+
 ## Step 1: Resolve Context
 
 ### Prefer the active plan when one exists
 
 Resolve in this order:
 
-1. `docs/plans/*.status.json` with any non-completed streams
+1. Current, unarchived `docs/plans/*.status.json` companions with incomplete streams or migration-needed/missing/stale final-pair evidence, including legacy all-completed status; honor explicit continuation context and do not reactivate a recorded finalized/archive plan merely because its schema is old
 2. Most recent `docs/plans/*.md`
 3. If no plan exists, review the current git working tree
+
+Assess candidates read-only before selecting; normalize only the selected safe companion, never all discovered archived plans.
 
 If exactly one active plan exists:
 - read the plan
 - read the status file
 - identify completed, in-progress, and final-validation state
+- normalize legacy status using the installed `stream` skill's `references/status-schema.md`; preserve implementation progress, stable baseline, and user-owned work
 - enter **implementation validation mode**
 
 If no status file exists but exactly one recent plan exists:
@@ -97,6 +104,10 @@ If the plan is already strong, say so explicitly.
 
 ## Step 3B: Implementation Validation Mode
 
+For an active implementation plan, validate the two sibling final reports before treating prior completion as current. If implementation is still running, review only the requested settled scope and do not claim final completion. Once all implementation verification/remediation has settled, resume the joined final protocol from the installed `stream` skill's `references/status-schema.md` if either report is absent, stale, incomplete, or from another snapshot. Run the code/cleanup and `auto-security-quality` passes against the same frozen full-change snapshot, with separate reports and no parallel source mutations. This is automatic, including for legacy status files with only `final`.
+
+For a Codex handoff, the earlier Claude Cleanup and security reports are inputs, not a substitute for this Codex review. If Codex review causes fixes, refresh the affected project checks and both snapshot-bound final reports before completion or any authorized commit/push/cleanup.
+
 Run the project verification suite before producing review findings.
 
 Minimum:
@@ -113,7 +124,7 @@ If checks fail:
 Skip this step in plan refinement mode unless the plan references existing code that must be inspected for feasibility.
 
 In implementation validation mode, inspect:
-- `git diff HEAD`
+- the stable baseline-to-current change set, including committed, staged, unstaged, and untracked source changes; `git diff HEAD` alone is insufficient for an active plan
 - changed file list
 - the plan's owned files for the current or final stream when available
 - adjacent consumers, shared types, tests, and related services
@@ -172,10 +183,10 @@ Report in this order:
 
 If no findings exist, say so explicitly and mention residual risk if any.
 
-## Step 7: Fix on Request
+## Step 7: Fix Within the Authorized Scope
 
-If the user asks to fix findings:
-- fix the approved issues directly
+In auto mode or when fixes have already been requested:
+- fix supported in-scope issues directly; preserve explicit review-only limits
 - prefer extracting reusable factories/helpers/workflows instead of patching around duplication
 - add focused tests for pure logic that was extracted or materially changed
 - if the missing piece is the UI/UX needed to expose already-implemented functionality, implement that surface as part of the fix when the intended behavior is reasonably inferable from the plan, surrounding code, or product structure
@@ -185,6 +196,7 @@ If the user asks to fix findings:
 
 Before closing:
 - re-run checks after fixes
+- for an active plan, confirm both final reports pass on the same current snapshot; stale or incomplete security evidence blocks final completion
 - confirm whether the tree is verification-clean
 - summarize what was fixed and what remains, if anything
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Auto Code Quality"
+  short_description: "Ponytail simplicity for coding and review"
+  default_prompt: "Use $auto-code-quality to complete this coding task with the simplest implementation that meets its requirements."
+policy:
+  allow_implicit_invocation: true

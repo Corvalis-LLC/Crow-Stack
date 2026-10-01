@@ -11,6 +11,8 @@ description: "Code review workflow inspired by CodeRabbit. Analyzes git changes 
 
 Comprehensive code review on git changes. Produces a structured report (walkthrough, changes table, categorized findings), then fixes approved issues via subagents.
 
+When called from summon/dominion/stream, inherit [automatic quality routing](../auto-workflow/references/quality-routing.md) and the caller's auto mode. Every reviewer and fix agent must load `auto-code-quality` for code and `auto-writing-quality` for report/copy prose, plus `auto-design-quality` for new or changed designs. Record actual loads in worker results. For the concurrent final stream, use the caller's frozen snapshot, remain read-only, and return findings; only the final coordinator may schedule remediation or commit after both final streams join.
+
 ```
 1. Detect Changes → 2. Load Skills → 3. Analyze (9 categories) → 4. Report → 5. Fix → 6. Verify → 7. Commit
 ```
@@ -33,8 +35,8 @@ Based on changed files, load skills automatically:
 
 | File Pattern | Skills |
 |--------------|--------|
-| `*.svelte` | auto-svelte, auto-accessibility, auto-layout |
-| `*.css`, `*.scss`, Tailwind classes, StyleSheet | auto-layout |
+| `*.svelte` | auto-svelte, auto-accessibility, auto-design-quality |
+| `*.css`, `*.scss`, Tailwind classes, StyleSheet | auto-design-quality |
 | `*.ts` (non-test) | auto-typescript |
 | `+server.ts`, `api/**` | auto-security, auto-errors |
 | Auth/login/session files | auto-security, auto-compliance |
@@ -95,9 +97,11 @@ The report follows this structure:
 
 For full report templates and examples, see **[report-templates.md](references/report-templates.md)**.
 
-## Step 5: Present and Await Response
+## Step 5: Present and Route Findings
 
 Present findings directly — do NOT use AskUserQuestion.
+
+In ecosystem auto mode, proceed with supported in-scope fixes without waiting; when this is a read-only final reviewer, return the report to its coordinator instead. The following response menu applies only to an explicitly interactive standalone review:
 
 ```
 ## Code Review Complete
@@ -114,6 +118,7 @@ Reply with what you'd like me to do (e.g., "fix all", "fix critical only", "skip
 
 For approved fixes, launch parallel subagents grouped by file. Each subagent:
 - Gets the file path, list of fixes, and relevant skill context
+- First loads the resolved `auto-code-quality` and `auto-writing-quality` entrypoints for its code/prose, plus any applicable design guidance; parent loading does not count
 - Applies fixes only — no other changes, no explanatory comments
 - Uses `model='sonnet'` for efficiency
 
@@ -124,7 +129,7 @@ After fixes:
 
 ## Step 7: Commit
 
-When user approves, stage specific files (follow auto-git — **never** `git add -A` or `git add .`):
+When the caller's finalization flow authorizes committing, stage specific files (**never** `git add -A` or `git add .`). A concurrent final reviewer does not commit. Standalone reviews commit only when requested:
 
 ```bash
 git add <specific-fixed-files>
@@ -134,7 +139,7 @@ git commit -m "fix: address code review findings
 
 ## Skill Dependencies
 
-This skill orchestrates: auto-security, auto-typescript, auto-accessibility, auto-svelte, auto-compliance, auto-coding, auto-errors, auto-naming, auto-comments, auto-logging, auto-edge-cases, auto-resource-lifecycle, auto-concurrency, auto-test-quality, auto-silent-defaults, auto-hardcoding, auto-resilience, auto-api-design, auto-database, auto-evolution, auto-serialization, auto-caching, auto-job-queue, auto-observability, auto-file-io, auto-state-machines, auto-layout, auto-i18n
+This skill orchestrates: auto-security, auto-typescript, auto-accessibility, auto-svelte, auto-compliance, auto-code-quality, auto-errors, auto-naming, auto-comments, auto-logging, auto-edge-cases, auto-resource-lifecycle, auto-concurrency, auto-test-quality, auto-silent-defaults, auto-hardcoding, auto-resilience, auto-api-design, auto-database, auto-evolution, auto-serialization, auto-caching, auto-job-queue, auto-observability, auto-file-io, auto-state-machines, auto-design-quality, auto-i18n
 
 ## Reference Files
 

@@ -7,6 +7,8 @@ description: "Legion execution discipline: orchestrator-driven parallel agent wa
 
 You are the **orchestrator**. You do not implement — you read, decompose, dispatch, and verify. Legion agents are your hands. Your job is to give each agent the smallest possible context window to produce correct code, then verify their work between waves.
 
+Read `auto-workflow/references/quality-routing.md` from the installed skill root. Every code worker, including test and verification agents, must load `auto-code-quality`; every prose author must load `auto-writing-quality`. New or changed designs require `auto-design-quality`. Put these loads and resolved paths into every worker prompt; never assume parent context is inherited. The same requirements apply when the orchestrator falls back to direct execution.
+
 ## Mode-Specific Interpretation
 
 Legion annotations in plans (`**Legion:** Yes — T:3 → I:3 → D:2`) are **mode-agnostic**. The executor decides how to interpret them based on how the plan is being run. Plan authors write the annotation once; two interpretations exist:
@@ -154,7 +156,14 @@ Agent(
 Every legion agent prompt follows this structure:
 
 ```
-You are implementing a focused task. Do not read files beyond what's listed here.
+You are implementing a focused task. Keep writes within the listed files.
+Read relevant callers and dependencies when needed to understand the actual flow.
+
+## Required First Step
+Load the skills at these resolved paths before the task files: {required skill paths}.
+Code work or review MUST include auto-code-quality; prose MUST include
+auto-writing-quality; new or changed design MUST include auto-design-quality. These
+skill/reference reads are permitted in addition to the task file boundaries.
 
 ## Your Task
 {one sentence: what to create/modify}
@@ -175,7 +184,7 @@ You are implementing a focused task. Do not read files beyond what's listed here
 ## Verify
 {exact test/check command to run after}
 
-Report: pass/fail count and any errors.
+Report: loaded skill entrypoints/references, their application, pass/fail count and any errors.
 ```
 
 ### What to Paste vs What to Reference
@@ -198,6 +207,7 @@ After ALL agents in a wave complete:
 Read each agent's output. Check for:
 - Did all agents report success?
 - Any agents that failed or reported errors?
+- Did each worker actually load the applicable mandatory quality skills? Check available tool/read evidence. If missing, have it load and re-audit affected work before accepting the result.
 
 ### 2. Run Project-Wide Verification
 ```bash

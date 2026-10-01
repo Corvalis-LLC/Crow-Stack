@@ -1,0 +1,6 @@
+interface:
+  display_name: "Auto Chat Quality"
+  short_description: "Action-first updates with low cognitive load"
+  default_prompt: "Use $auto-chat-quality to keep this task easy to follow and complete executable steps for me."
+policy:
+  allow_implicit_invocation: true

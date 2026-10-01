@@ -1,0 +1,6 @@
+interface:
+  display_name: "Auto Writing Quality"
+  short_description: "Humanizer for clear, accurate human-facing copy"
+  default_prompt: "Use $auto-writing-quality to write or edit this copy while preserving its facts and voice."
+policy:
+  allow_implicit_invocation: true

@@ -93,16 +93,16 @@ GOOD: test_retries_on_transient_failure
 
 The name should tell you what's broken when the test fails.
 
-## The Four-Test Minimum
+## Coverage by Behavior and Risk
 
-For any non-trivial function, you need at least:
+For non-trivial behavior, choose meaningful checks for the relevant cases:
 
 1. **Happy path** — normal input produces correct output
 2. **Edge case** — empty, zero, boundary input handled correctly
 3. **Error case** — invalid input produces the right error
 4. **Specific behavior** — the one thing this function does differently from similar functions
 
-If you can only write one test, write the specific-behavior test. It has the highest signal.
+These are coverage questions, not a test-count quota. Reuse the repository's framework and required checks; add the smallest set that would catch the actual regression, including security and boundary cases where relevant. Do not invent impossible error cases or mirror a trivial text edit merely to reach a count.
 
 ## Property-Based Testing
 

@@ -9,6 +9,8 @@ description: "Codex-side plan refinement before execution begins. Refines plans 
 
 This skill refines a plan *before* execution starts.
 
+Load `auto-writing-quality` before writing plan text or reports, and `auto-code-quality` before evaluating implementation code or proposing concrete code changes. Follow `auto-workflow/references/quality-routing.md`. In ecosystem auto mode, apply supported in-scope refinements directly, preserve explicit plan-only intent, and report the result without a routine approval round. Preserve the two final sibling streams and their joint completion gate.
+
 It is not the same as structural validation:
 - `plan-validate` asks whether a plan is executable
 - `codex-plan-refinement` asks whether the plan is sharp, sane, reuse-aware, and likely to produce senior-maintainable code
@@ -101,4 +103,3 @@ The objective is:
 - Improve the plan without inflating it
 - Prefer reusing established patterns over inventing new ones
 - Treat abstraction drift and monolith risk as planning concerns, not only implementation concerns
-

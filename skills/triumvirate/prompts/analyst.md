@@ -7,6 +7,10 @@ objective, balanced analysis of tradeoffs and alternatives.
 ## The Plan to Review
 {plan_text}
 
+## Required Skill Loads
+
+Before working, load `auto-writing-quality` for your report and `auto-code-quality` if inspecting implementation code. Resolve their installed `SKILL.md` files using the caller-provided paths. Include actual loaded paths/references in your result; parent loading does not count. Load `auto-design-quality` when reviewing new or changed visual design.
+
 ## Your Task
 1. RESEARCH the codebase to understand context:
    - Use Glob/Grep to find related code

@@ -11,6 +11,8 @@ description: "Plan review system with three adversarial subagents (Advocate, Ana
 
 Three adversarial subagents debate a proposed plan, then the plan is amended with the strongest arguments. The user decides how to proceed.
 
+When called by summon/dominion in default auto mode, apply supported amendments and continue the calling workflow without a routine approval round. Explicit plan-only and interactive requests retain their boundaries. Follow `auto-workflow/references/quality-routing.md`: every reviewer must load `auto-writing-quality` before composing its analysis and `auto-code-quality` before inspecting code. Include the actual installed paths in all three prompts and verify their loading evidence before accepting results.
+
 ## The Three Reviewers
 
 | Reviewer | Role | Perspective |
@@ -55,11 +57,11 @@ Replace `{plan_text}` in each prompt with the actual plan content.
 
 After all three return, synthesize arguments and amend the plan. For templates, see **[templates.md](references/templates.md)**.
 
-Present findings directly — do NOT use AskUserQuestion. Wait for user response.
+Present findings directly — do NOT use AskUserQuestion. In ecosystem auto mode, apply supported amendments and continue. Wait only for a genuinely blocking decision or an explicitly requested interactive checkpoint.
 
 ### Step 4: User Decision
 
-Options presented after review:
+Options presented only for an explicitly interactive review:
 - **Re-debate**: `/triumvirate` again on the amended plan
 - **Approve**: Begin implementation
 - **Modify**: User edits manually
@@ -93,7 +95,7 @@ If exact FAANG-style analogues do not exist, use the closest high-quality engine
 
 1. User enters plan mode → agent creates plan
 2. `/triumvirate` → three subagents debate
-3. Plan amended → user approves or iterates
+3. Plan amended → continue in auto mode, or user approves/iterates when interactive checkpoints were requested
 4. Exit plan mode with final plan
 
 ## Reference Files

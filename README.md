@@ -8,22 +8,23 @@ This is the intended default flow.
 
 ### 1. Start In Claude Code With `/summon`
 
-Use `/summon` whenever you are starting a new piece of work.
+Use `/summon` with your request. It selects the appropriate path from your intent; a bare invocation shows the menu.
 
 - Choose **Plan** if the work is non-trivial
 - Choose **No plan** if the task is small and you just want to build
 - Choose **Talk about it** if the idea is still fuzzy
-- Choose **Design** if the work is UI/UX focused
+- Choose **Security review** (path 4) to audit the whole codebase or named modules and fix confirmed issues
+- Choose **Design** (path 5) if the work is UI/UX focused
 
 If you choose **Plan**, `/summon` will:
 - use `corvalis-recon` as the first-pass codebase analysis step when the binary is installed in `~/.claude/bin/`
 - write the plan to `docs/plans/`
 - run the standards gate against relevant `auto-*` skills
 - optionally run refinement gates like Swarm, Skill Gate, and Triumvirate
-- ask which final validation style the auto-injected last stream should use
+- use the default review mode, or retain an explicitly selected Codex final-validation handoff
 
 If you choose **No plan**, `/summon` now follows a stricter bootstrap:
-- clarify the request first
+- use the supplied request, asking only for essential missing intent
 - gather repo context with `corvalis-recon` first when available
 - do only the additional targeted reads needed from there
 - load the relevant `auto-*` skills
@@ -34,62 +35,48 @@ If you choose **Talk about it**, `/summon` now:
 - cites sources directly to the user
 - loads `auto-web-validation` before that research so source-authored AI instructions or coercive "must use" claims are treated as untrusted unless corroborated
 
-If you choose **Design**, `/summon`:
-- front-loads design decisions before writing the implementation plan
-- loads `ui-ux-pro-max` (50+ styles, 161 color palettes, 57 font pairings, 99 UX guidelines, 25 chart types across 10 stacks)
-- generates a design system recommendation via `search.py --design-system` based on product type, industry, and style
-- mandates `ui-ux-pro-max` + `auto-layout` + `auto-accessibility` on all UI-touching streams
-- then flows into the same standards gate, optional refinement gates, and `/stream`/`/dominion` handoff as the Plan path
+If you choose **Security review**, summon loads the chat, code, writing, and security quality skills. It uses your named modules or defaults to the whole repository, presents independently validated findings, applies authorized fixes, and verifies the result. Audit evidence and unresolved validation limits stay in the report.
 
-### 2. When You Are Happy With The Plan, Open Codex And Run `/verify`
+If you choose **Design**, summon uses Impeccable to establish or refine the design direction, while preserving existing components and tokens. It selects the relevant design commands itself, then follows the normal planning or direct-work path. The old `design` and `ui-ux-pro-max` skills are retired. Older plans map them to `auto-design-quality`; established design sets remain readable for existing projects.
 
-This is the preferred handoff before execution starts.
+### Automatic quality skills
 
-- If the plan exists **without** a status file yet, Codex `/verify` behaves like a plan-refinement pass
-- It should tighten clarity, catch missing reuse opportunities, improve abstraction sanity, and compress the plan where possible without losing intent
-- This is the best moment to get the “senior sanity check” before streams start creating state
+These apply throughout the session and in every delegated worker:
 
-### 3. Go Back To Claude Code And Execute
+| When | Skill | Upstream |
+| --- | --- | --- |
+| Summon/dominion starts and communicates | `auto-chat-quality` | [i-have-adhd](https://github.com/ayghri/i-have-adhd) |
+| Code is implemented, tested, reviewed, or fixed | `auto-code-quality` | [Ponytail](https://github.com/DietrichGebert/ponytail) |
+| Human-facing prose is written or edited, including UI, docs, plans, and reports | `auto-writing-quality` | [Humanizer](https://github.com/blader/humanizer) |
+| A design is created or changed | `auto-design-quality` | [Impeccable](https://github.com/pbakaus/impeccable) |
+| Security review or the final security stream runs | `auto-security-quality` | [Cloudflare security audit](https://github.com/cloudflare/security-audit-skill) |
 
-After the plan looks good:
+Each agent must load its own applicable skills before working. The coordinator checks loading evidence and returns missed loads for a fresh audit of affected work. Plain reuse of an unchanged established component skips Impeccable; new labels still receive writing quality. Auto mode is the default: the agent infers routine choices, runs relevant checks, fixes supported issues, and chooses subcommands without approval pauses. It asks only for essential missing intent or a real permission requirement. Explicit plan-only, review-only, or interactive requests retain their boundaries.
 
-- Use `/stream` if you want to execute one stream at a time with hands-on control
-- Use `/dominion` if you want Claude Code to execute the full multi-stream plan autonomously
+Upstream guidance is bundled at pinned revisions, with provenance in each new skill's `UPSTREAM.md` and consolidated notices in the root `LICENSE`. The local entrypoints adapt routing and manual handoffs. They preserve the underlying guidance and avoid installing upstream hooks or requiring command memorization. The supplied `blader/humanizers` URL was unavailable; the bundle uses the author's canonical singular `blader/humanizer` repository.
 
-`/stream` and `/dominion` create and use the plan’s companion `.status.json` file. That status file is the boundary between “pre-execution plan refinement” and “in-flight implementation validation.”
+### 2. Refine and Execute Automatically
 
-### 4. Validate While Work Is In Flight
+Summon writes and checks a plan when the task needs one, then invokes Dominion for execution. Routine research, reuse, skill assignment, and design decisions proceed automatically. A request to plan only stops at the completed plan; an explicitly interactive request keeps the requested checkpoints.
 
-Once `/stream` or `/dominion` has started and the status file exists, Codex `/verify` changes roles:
+Dominion dispatches implementation agents with their required skills, verifies each result, and fixes supported findings within scope. The `stream` workflow tracks dependencies and status internally. Code and prose workers must load their own quality skills; parent context alone does not count.
 
-- it stops acting like a plan-refinement pass
-- it becomes a findings-first implementation validation pass
-- it checks correctness, cross-file impact, maintainability, testability, and senior-level readability
+The default final-review mode is `review`. If you explicitly select `codex`, the existing Codex validation handoff remains available. A same-host agent can continue directly; a handoff to an unavailable runtime is reported honestly.
 
-### 5. Finish Through The Final Validation Stream
+### 3. Finish Through Two Concurrent Validation Streams
 
-Every multi-stream execution path ends with an auto-injected final validation stream.
+Every multi-stream execution ends with two sibling streams after implementation settles: the existing final review/cleanup and an independent `auto-security-quality` audit of the changes. Both review the same recorded snapshot, including uncommitted work, and write separate reports. A coordinator joins their results, assigns fixes serially, and reruns affected checks; neither reviewer commits or mutates shared code while the other is reading it.
 
-- If the plan’s final validation mode is `codex`, Claude runs a `Final Cleanup` stream first as the automated discipline sweep, then hands off to Codex `/verify` for the stricter human-in-the-loop findings-first final audit
-- If the plan’s final validation mode is `review`, that final stream uses the classic `/review` path
-
-In `review` mode, the final stream verifies the completed work, commits, pushes, and closes out the plan and status files.
-
-In `codex` mode, this behaves like a double verification pass: Claude does the broad cleanup and automated standards sweep first, then Codex does the stricter final review. The Claude cleanup stream leaves the repo uncommitted and preserves the plan/status artifacts so Codex `/verify` can do the final nitpick pass with full context.
+In `review` mode, finalization follows the existing commit/push and plan-cleanup flow only after both checks pass. In `codex` mode, the cleanup and security evidence accompany the existing Codex `/verify` handoff, with plan/status artifacts preserved. Any subsequent fixes invalidate affected review evidence. Unresolved security candidates remain explicit and cannot be described as a clean audit.
 
 ## Primary Entry Points
 
-These are the commands you should actually remember.
+`/summon` is the primary entry point. `/dominion` is the secondary entry point for autonomous plan execution. Other workflow skills are supporting tools the agent routes as needed.
 
-### Claude Code
+- `/summon` — session bootstrap, planning, direct work, discussion, security review, or design
+- `/dominion` — execute a multi-stream plan autonomously
 
-- `/summon` — session bootstrap, planning, standards gate, handoff
-- `/stream` — execute one stream from a plan
-- `/dominion` — execute the full multi-stream plan autonomously
-
-### Codex
-
-- `/verify` — active-plan-aware plan refinement or implementation validation
+`stream` coordinates execution and `verify` provides the Codex validation handoff. They remain available for established workflows, but users do not need to remember their commands to get the quality skills. There is no separate `/design` workflow.
 
 Everything else should be treated as either:
 - an automatic discipline (`auto-*`)
@@ -134,62 +121,31 @@ Copy the `skills/` directory contents to your Claude Code skills directory:
 cp -R skills/* ~/.claude/skills/
 ```
 
-### Codex Companion Install
+### Codex Install
 
-For the recommended Codex companion setup, use the dedicated installer:
+Install the complete ecosystem, including the new automatic quality skills and their resources:
 
 ```bash
-chmod +x install-codex.sh
 ./install-codex.sh
 ```
 
-That installer links the recommended Codex-side skills into `~/.codex/skills/`:
-- `verify`
-- `auto-sanity`
+This links all active top-level skills into `$CODEX_HOME/skills` when configured, otherwise `~/.codex/skills`. Both installers preserve unrelated skills and back up conflicting files, directories, and dangling links. Retired `design` and `ui-ux-pro-max` installations are moved out of the discoverable skill directory into the same backup. Re-running them is safe; existing links to this checkout stay in place. The `future/` grouping is not installed as a skill.
 
-It also leaves the optional Codex companion skills available to install manually if you want a richer validation stack.
-
-Codex uses a separate skills directory:
+To update Claude skills without downloading recon or editing shell configuration:
 
 ```bash
-mkdir -p ~/.codex/skills
+./install.sh --skills-only
 ```
 
-Codex only needs the companion verification-side skills, not the entire Claude orchestration stack. Recommended Codex installs:
+Both scripts accept `--skills-dir /path/to/skills` for a custom destination. Claude and Codex load the same entrypoints and bundled references. Claude uses its Skill tool; Codex reads the discovered skill file. New sessions can discover newly installed skill names.
 
-- `verify`
-- `auto-sanity`
-
-Optional Codex companion skills:
-
-- `codex-validation`
-- `auto-testability`
-
-Example manual install:
-
-```bash
-mkdir -p ~/.codex/skills/verify ~/.codex/skills/auto-sanity
-cp -R skills/verify/* ~/.codex/skills/verify/
-cp -R skills/auto-sanity/* ~/.codex/skills/auto-sanity/
-```
-
-If you also want the optional Codex companion skills:
-
-```bash
-mkdir -p ~/.codex/skills/codex-validation ~/.codex/skills/auto-testability
-cp -R skills/codex-validation/* ~/.codex/skills/codex-validation/
-cp -R skills/auto-testability/* ~/.codex/skills/auto-testability/
-```
-
-Recommended operating model:
-- Claude Code owns planning and execution: `/summon`, `/stream`, `/dominion`
-- Codex owns the stronger validation lane: `/verify`
+Start with `/summon` on either host, or `/dominion` to execute an existing plan. Installing the full set on both hosts makes all routed dependencies available, including the optional Codex validation handoff.
 
 ## corvalis-recon
 
 `corvalis-recon` is the AST-based structured codebase analysis binary that powers recon-aware planning.
 
-The source for the tool lives in [tools/recon](/Users/architect/Documents/GitHub/corvalis-skills/tools/recon). It is a standalone Rust CLI, not just a summon helper, and it is meant to be useful both inside the Corvalis workflow and directly from the command line when you want fast structural understanding of a codebase.
+The source for the tool lives in [tools/recon](tools/recon). It is a standalone Rust CLI that supports both the Corvalis workflow and direct codebase exploration.
 
 ### What The Tool Is
 
@@ -337,40 +293,26 @@ Rust and other languages can be added later, but today recon is optimized for th
 
 ## Quick Start
 
-### Claude Code flow
+1. Install the ecosystem with `./install.sh` for Claude or `./install-codex.sh` for Codex.
+2. Start a fresh session and use `/summon` with the work you want done.
+3. Summon selects the path, gathers relevant context, loads the required skills, and continues automatically.
+4. Use `/dominion` directly when you already have a plan to execute.
 
-1. Install the Claude Code skills (see above)
-2. Start a new Claude Code session
-3. Run `/summon`
-4. Choose **Plan** — describe what you're building
-5. If `corvalis-recon` is installed, summon will automatically use it to gather structured repo context
-6. In **No plan** mode, summon clarifies first, gathers context, loads the relevant `auto-*` skills, and begins
-7. In **Talk about it** mode, summon can do cited web research before recommending approaches
-8. In **Design** mode, summon generates a design system first, then plans around it with `ui-ux-pro-max`
-8. The system writes a plan, validates it, and recommends next steps
-9. When you are happy with the plan, open Codex and run `/verify`
-10. Return to Claude Code and run `/dominion` to execute the full plan autonomously, or `/stream` to execute one stream at a time
-
-### Codex flow
-
-1. Install Codex companion skills into `~/.codex/skills/` using `./install-codex.sh` or the manual steps above
-2. If `corvalis-recon` is installed in `~/.claude/bin/`, Codex `/verify` can use it as a first-pass repo context source before deeper validation
-3. If a plan exists but execution has not started yet, run `/verify` to refine the plan
-4. If implementation is already underway, run `/verify` to perform the stronger findings-first validation pass
+Choose path 4 for a security review or path 5 for design when using the menu. You do not need to invoke the new quality skills or their internal subcommands.
 
 ## The Execution Stack
 
 ```
-  /summon          Session bootstrap — plan, no-plan, talk, design
+  /summon          Session bootstrap — plan, no-plan, talk, security, design
      │
      ├──► corvalis-recon   Structured repo analysis when installed
-     ├──► ui-ux-pro-max    Design intelligence (Path D)
+     ├──► auto-design-quality  Automatic design guidance and command routing
      ├──► auto-web-validation   Mandatory before web/package/vendor research
      │
      ├──► /verify        Codex plan refinement before execution
      │
      ▼
-  /dominion        Autonomous orchestrator — spawns headless Claude instances
+  /dominion        Autonomous orchestrator — dispatches agents per stream
      │
      ├──► /stream [A]    ──► legion wave 1 ──► wave 2 ──► ...
      ├──► /stream [B]    ──► legion wave 1 ──► wave 2 ──► ...
@@ -378,7 +320,8 @@ Rust and other languages can be added later, but today recon is optimized for th
      ▼
   /stream [C]      Waits for A & B, then executes
      │
-     ├──► Final Cleanup   Claude automated verification and cleanup pass
+     ├──► Final Review/Cleanup  ──┐
+     ├──► Final Security        ──┴── join, fix, revalidate
      │
      ├──► /verify        Codex implementation validation while work is active
      ▼
@@ -387,24 +330,19 @@ Rust and other languages can be added later, but today recon is optimized for th
 
 ## Skill Reference
 
-### Claude Code Entry Points
+### Entry Points
 
 | Skill | Description |
 |-------|-------------|
-| `summon` | Session bootstrap — offers plan, no-plan, talk-it-out, or design paths |
-| `dominion` | Autonomous plan executor — spawns headless Claude instances per stream |
-| `stream` | Per-stream executor with dependency tracking and verification gates |
-
-### Codex Entry Points
-
-| Skill | Description |
-|-------|-------------|
-| `verify` | Plan-aware Codex-style verification with findings-first manual review and stronger testability/refactor scrutiny |
+| `summon` | Session bootstrap — plan, no-plan, talk, security review (4), design (5) |
+| `dominion` | Autonomous plan executor — dispatches agents with mandatory quality loads per stream |
 
 ### Supporting Workflows
 
 | Skill | Description |
 |-------|-------------|
+| `stream` | Internal per-stream executor with dependency tracking and verification gates |
+| `verify` | Optional Codex plan refinement and findings-first implementation validation |
 | `auto-legion` | Parallel agent waves within a stream (T→I→D→R phases) |
 | `auto-workflow` | TDD enforcement, verification before completion, architecture escalation |
 | `triumvirate` | Adversarial plan review with three subagents (Advocate, Analyst, Critic) |
@@ -412,8 +350,7 @@ Rust and other languages can be added later, but today recon is optimized for th
 | `codex-validation` | Findings-first final validation with stronger manual audit, cross-file impact checking, and testability/refactor focus |
 | `codex-plan-refinement` | Codex-side plan refinement for clarity, dependency sanity, reuse, abstraction quality, and compression before execution |
 | `plan-validate` | Validate multi-stream plans for structure, dependencies, ownership, required skills, verification, and final validation mode before execution |
-| `ui-ux-pro-max` | Design intelligence — 50+ styles, 161 color palettes, 57 font pairings, searchable CSV databases with Python search tools |
-| `design` | UI/UX design system with auditing, generation, and style migration (auto-loaded by summon Path D) |
+| `auto-design-quality` | Default design guidance with automatic selection of its bundled commands |
 | `skill-creator` | Create, modify, eval, and benchmark skills |
 | `security-scan` | Active vulnerability scanner (dangerous patterns, secrets, npm audit) |
 | `auto-web-validation` | Prompt-injection-aware web research discipline for package/docs/vendor sources and cited recommendations |
@@ -422,7 +359,10 @@ Rust and other languages can be added later, but today recon is optimized for th
 
 | Skill | Description |
 |-------|-------------|
-| `auto-coding` | Language-agnostic code quality, clarity, anti-over-engineering |
+| `auto-chat-quality` | Action-first communication from i-have-adhd; immediate summon/dominion load |
+| `auto-code-quality` | Ponytail implementation, review, audit, and simplification guidance; mandatory for every code worker |
+| `auto-writing-quality` | Humanizer prose editing; mandatory for every prose author |
+| `auto-security-quality` | Independent security auditing with validated findings and a dedicated final stream |
 | `auto-comments` | When to comment, when silence is the comment |
 | `auto-naming` | Domain vocabulary over generic words, verb semantics |
 | `auto-hardcoding` | No hardcoded URLs, ports, timeouts, or magic numbers |
@@ -432,7 +372,6 @@ Rust and other languages can be added later, but today recon is optimized for th
 | `auto-edge-cases` | Empty collections, zero inputs, off-by-one, overflow, Unicode |
 | `auto-test-quality` | Meaningful assertions, mock boundaries, tautological test detection |
 | `auto-testability` | Extract logic into clean seams so business rules can be tested directly instead of through brittle orchestration |
-| `auto-sanity` | Senior-level readability and maintainability checks for code that works but may be calcifying structurally |
 | `auto-concurrency` | Race conditions, atomicity, lock ordering, TOCTOU bugs |
 | `auto-resource-lifecycle` | Guaranteed cleanup on all paths, RAII/context managers |
 | `auto-resilience` | Timeouts, retries with backoff, circuit breaking, idempotency |
@@ -448,7 +387,6 @@ Rust and other languages can be added later, but today recon is optimized for th
 | `auto-security` | Session token hashing, auth hiding, timing-safe flows, cookie hardening |
 | `auto-compliance` | GPC headers, data deletion gates, consent proof, regulatory escalation |
 | `auto-accessibility` | ARIA completeness, touch targets, forced-colors/reduced-motion, WCAG 2.2 |
-| `auto-layout` | Card restraint, grid over flex for 2D, design tokens, z-index management |
 | `auto-i18n` | ICU pluralization, locale-aware formatting, RTL support |
 
 ### Language-Specific
@@ -465,15 +403,15 @@ The system is organized in three layers:
 
 ### Layer 1: Claude Entry Points
 
-`/summon`, `/stream`, and `/dominion` are the core human entry points in Claude Code.
+`/summon` is the primary entry point on either host; `/dominion` is the secondary entry point for an existing plan.
 
 ### Layer 2: Supporting Workflows
 
-Supporting workflows such as `triumvirate`, `review`, `codex-validation`, `plan-validate`, and `design` are intentionally fewer and more deliberate. They are not meant to compete with the primary entry points.
+Supporting workflows such as `triumvirate`, `review`, `codex-validation`, `plan-validate`, and `auto-design-quality` are intentionally fewer and more deliberate. They are not meant to compete with the primary entry points.
 
 ### Layer 3: `auto-*` — Discipline Skills
 
-Auto-triggered coding standards activate based on what you're doing. Writing a database query? `auto-database` loads. Growing a route into a monolith? `auto-testability` and `auto-sanity` should push extraction and cleanup. These skills encode the patterns the model knows but applies inconsistently, making the quality floor more reliable.
+Auto-triggered coding standards activate based on what you're doing. Writing a database query? `auto-database` loads. Growing a route into a monolith? `auto-testability` and `auto-code-quality` should push extraction and cleanup. These skills encode the patterns the model knows but applies inconsistently, making the quality floor more reliable.
 
 ## Key Concepts
 
@@ -506,8 +444,33 @@ Corvalis discipline skills don't suggest improvements — they enforce them. Whe
 
 ### The Skill Gate
 
-During planning, `/summon` assigns a concrete list of auto-* skills to each stream. A baseline set (`auto-workflow`, `auto-coding`, `auto-errors`, `auto-naming`, `auto-edge-cases`) loads unconditionally for every stream. Additional skills are assigned per-stream based on what that stream touches — the user reviews and approves the assignments. These are written into the plan's `## Required Skills` section and flow into the status file's `baselineSkills` field, so `/stream` loads exactly the right skills without heuristic guessing.
+During planning, `/summon` assigns a concrete list of auto-* skills to each stream. The execution baseline includes `auto-workflow`, `auto-code-quality`, `auto-errors`, `auto-naming`, and `auto-edge-cases`. Mandatory chat/code/writing/design quality loads apply to the actual work even when an older plan omits them. Additional skills are assigned per-stream based on what that stream touches — the agent assigns and checks them automatically. These are written into the plan's `## Required Skills` section and flow into the status file's `baselineSkills` field, so `/stream` loads exactly the right skills without heuristic guessing.
 
 ### The Parallelization Gate
 
 Before `/dominion` spawns parallel streams, it validates that file ownership boundaries don't overlap. If two streams touch the same file, they cannot run in parallel regardless of their declared dependencies. This prevents merge conflicts and race conditions in the codebase.
+
+## Verifying This Ecosystem
+
+Run the installer checks in isolated temporary destinations:
+
+```bash
+node --test tools/skills/*.test.cjs
+node --test skills/auto-security-quality/upstream/*.test.cjs
+node --test skills/auto-design-quality/upstream/tests/*.test.mjs
+bash -n install.sh install-codex.sh tools/skills/install-common.sh
+```
+
+The security bundle also includes its upstream validators and tests. Skill routing is an instruction contract, so behavioral checks should cover a direct code change, a prose-only edit, an unchanged component reuse, a design change, a security audit, and both final validation modes. Check each delegated worker's actual loads and ensure final review evidence is refreshed after fixes. A skill name in a result checklist alone does not prove execution.
+
+## Retired Skills
+
+The installers back up these old entries outside the discoverable skill directory. Older plan/status assignments map to their replacements automatically.
+
+| Retired | Replacement |
+| --- | --- |
+| `design`, `ui-ux-pro-max`, `auto-layout` | `auto-design-quality`; distinct layout rules and existing design-set references are retained there |
+| `auto-coding`, `auto-sanity` | `auto-code-quality`, with `auto-testability` for structural review |
+| Experimental `auto-refactor` | `auto-code-quality` and `auto-testability` |
+
+Naming, comments, testability, accessibility, language, security, and other domain disciplines remain because they provide rules the new general skills do not cover. Reduced-motion, test-count, and localization guidance were reconciled with the new design and coding workflows.

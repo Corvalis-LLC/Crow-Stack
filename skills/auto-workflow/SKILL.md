@@ -7,6 +7,10 @@ description: "Development workflow discipline — TDD enforcement, verification 
 
 Behavioral guardrails Claude doesn't self-impose. Everything here addresses a specific failure mode observed in baseline testing.
 
+## Required Quality Skills
+
+Before working, read [automatic quality routing](references/quality-routing.md). Load `auto-code-quality` for code work and code review, `auto-writing-quality` for human-facing prose, and `auto-design-quality` for new or changed designs. Summon and dominion load `auto-chat-quality` immediately. Each delegated worker must load its own applicable skills; parent loading is insufficient. Keep these requirements active through follow-up edits, verification, remediation, and context compaction.
+
 ## Iron Laws
 
 1. **NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST** — One test at a time. Watch it fail. Write minimal code to pass. Then next test. Never batch tests before implementing.
@@ -65,7 +69,7 @@ Claude defaults to performative agreement. This wastes cycles and implements bad
 
 ## Architecture Escalation
 
-If you've tried 3+ fixes for the same issue and each reveals a new problem in a different place, stop. The pattern is wrong, not the code. Question the architecture with the user before attempting fix #4.
+If you've tried 3+ fixes for the same issue and each reveals a new problem in a different place, stop repeating the patch strategy and investigate the architecture. In summon/dominion auto mode, choose and verify a supported correction within scope; ask the user only if a missing decision or expanded authorization actually blocks the correction. Do not continue guessing at fix #4.
 
 Signs of an architectural problem:
 - Each fix reveals new coupling or shared state

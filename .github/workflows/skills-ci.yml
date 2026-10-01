@@ -1,0 +1,27 @@
+name: Skills CI
+
+on:
+  push:
+    paths: ["skills/**", "tools/skills/**", "install*.sh", "LICENSE", ".github/workflows/skills-ci.yml"]
+  pull_request:
+    paths: ["skills/**", "tools/skills/**", "install*.sh", "LICENSE", ".github/workflows/skills-ci.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer syntax and isolated install checks
+        run: |
+          bash -n install.sh install-codex.sh tools/skills/install-common.sh
+          node --test tools/skills/*.test.cjs
+      - name: Security report validators
+        run: node --test skills/auto-security-quality/upstream/*.test.cjs
+      - name: Design reference and local launcher fixtures
+        run: node --test skills/auto-design-quality/upstream/tests/*.test.mjs

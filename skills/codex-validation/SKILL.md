@@ -1,6 +1,6 @@
 ---
 name: codex-validation
-description: "Findings-first validation workflow modeled on strong Codex manual review. Verifies the project, reviews changed code plus surrounding context for correctness and maintainability, fixes approved issues, re-verifies, and only then commits. Use for final validation streams or when the user wants a more rigorous manual audit than the classic /review flow."
+description: "Findings-first validation workflow modeled on strong Codex manual review. Verifies the project, reviews changed code plus surrounding context for correctness and maintainability, fixes authorized issues, re-verifies, and only then commits. Use for final validation streams or when the user wants a more rigorous manual audit than the classic /review flow."
 ---
 
 # Codex Validation
@@ -15,7 +15,7 @@ It is designed for the end of a multi-stream implementation, where the goal is n
 
 ```
 1. Verify → 2. Read surrounding context → 3. Produce findings-first review
-   → 4. Fix approved findings → 5. Re-verify → 6. Commit
+   → 4. Fix authorized findings → 5. Re-verify both final gates → 6. Authorized commit
 ```
 
 ## When to Use
@@ -30,6 +30,12 @@ It is designed for the end of a multi-stream implementation, where the goal is n
 - Early implementation, before the project can be verified meaningfully
 
 ## Step 1: Full Verification First
+
+First load `auto-chat-quality`, `auto-code-quality`, `auto-writing-quality`, and `auto-workflow` with its `references/quality-routing.md`. Use Skill on Claude or resolve/read installed `SKILL.md` files on Codex; resolve references relative to each skill. Route new/changed design to `auto-design-quality`. Every delegated worker must load its own applicable quality skills and return actual load evidence; parent excerpts alone do not satisfy the gate.
+
+For an active plan, normalize legacy status and follow the installed `stream` skill's `references/status-schema.md`. Review the stable baseline-to-current snapshot including staged, unstaged, committed, and untracked source changes. Keep the independent `final-security` audit using `auto-security-quality`; neither the classic review nor Codex validation replaces it. Reviewers write separate reports without concurrent source mutation. One owner remediates after joining results and refreshes both reports on the current snapshot after fixes.
+
+Auto mode applies supported in-scope fixes without a routine approval pause. Honor explicit review-only/manual requests and genuine permission boundaries.
 
 Before reviewing the code, run the full project verification suite.
 
@@ -98,9 +104,9 @@ Findings should be concrete and actionable:
 
 If there are no findings, say that explicitly and mention any residual risk.
 
-## Step 5: Fix the Approved Findings
+## Step 5: Fix Authorized Findings
 
-For approved issues:
+For supported issues within the authorized scope:
 - Fix them directly
 - Prefer extraction to reusable factories/helpers when the same pattern appears 3+ times
 - Add focused tests for pure logic you extracted or materially changed
@@ -117,10 +123,12 @@ Do not close the validation pass on assumptions.
 
 ## Step 7: Commit
 
-When the user approves:
+When commit is authorized by the request or active workflow, and both final gates pass on the same current snapshot:
 - Stage specific files only
 - Commit with a conventional message
 - Push if requested by the active workflow
+
+Do not manufacture an approval or commit when the user requested only a review. Reuse existing authorization rather than adding another routine question. Preserve plan/status/reports until the active finalization workflow has genuinely completed; never commit or clean up independently while a security reviewer is still running.
 
 ## Principles
 
@@ -130,4 +138,3 @@ When the user approves:
 - Extract repeated patterns instead of leaving them as review notes
 - Add tests where refactors create clean pure seams
 - Prefer "thin route/page, rich helper/service" architecture
-

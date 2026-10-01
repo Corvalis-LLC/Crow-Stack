@@ -25,6 +25,8 @@ It exists because the summon/stream/dominion workflow increasingly depends on pl
 
 ## What to Validate
 
+Load `auto-chat-quality` and `auto-writing-quality` before producing findings; load `auto-code-quality` when reviewing referenced code. Resolve the installed skill on Codex and read `SKILL.md`, or use Skill on Claude. Apply the installed `auto-workflow` skill's `references/quality-routing.md`. In auto mode, repair supported metadata gaps directly within the authorized plan scope, report amendments, and continue; do not add routine approval questions. Explicit review-only/manual requests remain controlling.
+
 ### 1. Stream Structure
 
 Check that:
@@ -61,6 +63,8 @@ Check that:
 - baseline skills are present
 - per-stream skills look plausible for the work described
 - skills are not obviously missing for security, data, API, UI, or test work
+- the automatic quality floor applies even if the plan predates the new skills: `auto-chat-quality`, `auto-code-quality` for code/review, `auto-writing-quality` for human prose, and `auto-design-quality` for new/changed design beyond unchanged established reuse
+- worker prompts require their own actual skill loads and evidence; parent excerpts are insufficient
 
 ### 5. Verification Story
 
@@ -87,7 +91,15 @@ or
 Mode: review
 ```
 
-If missing, recommend adding it before execution.
+If missing, use the existing `review` default and record it before execution, unless the user has explicitly selected `codex`.
+
+### 7. Final Review and Security Siblings
+
+Confirm that the execution contract injects reserved `final` and `final-security` IDs. Plan authors need not add stream headers for them. Both depend on every implementation stream, excluding both final IDs; neither depends on the other. They start only after implementation verification/remediation settles, not on primary completion alone.
+
+Use the installed `stream` skill's `references/status-schema.md` as the canonical contract. Require a stable pre-implementation baseline; a frozen snapshot including committed, staged, unstaged, and untracked source changes; two concurrent read-only reviewers with separate reports; a single coordinator for status; and one remediation owner after joining the reports. Both passes need evidence for the current snapshot before review-mode commit/push/cleanup or Codex handoff. `auto-security-quality` is mandatory for the security sibling. Check that legacy status migration is idempotent and preserves progress while adding the missing gate.
+
+Flag same-file parallel mutations, reviewers committing/cleaning independently, bare `git diff HEAD` as whole-plan coverage, a final-only skill override that bypasses quality routing, and missing re-review after fixes as real execution gaps.
 
 ## Output Format
 
@@ -110,4 +122,3 @@ If the plan is execution-ready, say so explicitly.
 - Prefer concrete amendments over abstract criticism
 - Flag false dependencies aggressively
 - Treat missing verification and missing final validation mode as real issues
-

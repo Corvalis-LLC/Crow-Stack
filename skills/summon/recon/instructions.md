@@ -98,7 +98,7 @@ Use `project.languages` and file-level `language` fields to assign per-stream sk
 | Recon field | Skill assignment signal |
 |------------|------------------------|
 | `language: "typescript"` or `"tsx"` | `auto-typescript` |
-| `language: "svelte"` | `auto-svelte`, `auto-accessibility`, `auto-layout` |
+| `language: "svelte"` | `auto-svelte`, `auto-accessibility`, `auto-design-quality` |
 | Files with `imports` from external packages like `express`, `hono`, `fastify` | `auto-api-design`, `auto-resilience` |
 | Files with `imports` referencing `prisma`, `drizzle`, `sqlx`, `knex` | `auto-database` |
 | Files in directories named `auth`, `session`, `permission` | `auto-security` |

@@ -131,6 +131,9 @@ For each file with approved fixes:
   Task(subagent_type='general-purpose', model='sonnet', prompt=
     "Fix the following issues in {file}:
      {list of fixes with descriptions and solutions}
+     First load auto-code-quality for code and auto-writing-quality for prose
+     from {resolved skill paths}; load auto-design-quality for changed designs.
+     Return the loaded paths/references and verification evidence.
      Apply fixes following project standards.
      Do NOT make any other changes.
      Do NOT add comments explaining the fix.")
@@ -140,4 +143,4 @@ After fixes complete:
 1. Run `git diff` to verify changes
 2. Check for any new issues introduced
 3. Present final summary
-4. Wait for user to approve commit
+4. Return to the caller's finalization flow; in auto mode do not add an approval round. Concurrent final reviewers never commit themselves.

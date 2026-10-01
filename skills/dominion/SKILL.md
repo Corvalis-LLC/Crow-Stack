@@ -28,9 +28,17 @@ The unifying principle holding the pipeline together: **every handoff in dominio
 
 No stage inherits trust from the prior stage. Every stage plays Critic against the plan. The mechanisms below — Agent-mode execution, three-input remediation, the briefing packet model, phase gates — all exist to make this concrete.
 
+## Automatic Quality Routing and Auto Mode
+
+Immediately load `auto-chat-quality`, `auto-code-quality`, `auto-writing-quality`, and `auto-workflow` with its `references/quality-routing.md`. On Claude use Skill; on Codex resolve/read the installed `SKILL.md`. Resolve references from their skill directory. Route new/changed design to `auto-design-quality` on actual work, except plain unchanged reuse of established components. These adapters remain active through later turns, compaction, resume, direct orchestrator edits, and every worker role.
+
+Default to auto mode: resolve routine choices, show the execution preview, and proceed without a new approval question. Run missing plan/refinement checks yourself; keep `review` as the default final-validation mode unless `codex` is explicitly selected. Fix supported in-scope issues and choose upstream subcommands yourself. Honor explicit manual/review-only limits and actual permission boundaries. Ask only for material missing intent, ambiguous ownership/active takeover, or a genuine blocker that cannot be resolved safely from context.
+
+**Every subagent must load its applicable quality skills in its own context before work.** This includes primary, verification (code reading/review counts), remediation, surgical follow-up, research/report writers, both final reviewers, and any delegated fix owner. Chat quality applies to all workers; code quality applies to all code work/review; writing quality applies to every human-facing response, report, doc, or UI string; Impeccable applies to design creation/review/editing. The final security worker additionally loads `auto-security-quality`. Pass resolved skill paths and the actual assignment manifest in each prompt. A parent's loaded skill names or short rule excerpts do not satisfy this requirement. Require returned load evidence and re-audit affected output after any missed load.
+
 ## Orchestrator-Bears-the-Skills — Briefing Packet Model
 
-Dominion owns exactly one context. N agents don't multiply that work; they inherit it. Agents receive pre-digested briefing packets instead of "load these skills, read these files, then do X" preambles.
+Dominion owns exactly one context. N agents don't multiply that work; they inherit it. Agents receive pre-digested domain briefing packets plus mandatory first-step quality skill loads. Domain excerpts reduce repeated context work; they do not replace the quality adapters in each worker context.
 
 ### Dominion's one-time work per plan
 
@@ -44,14 +52,14 @@ Dominion owns exactly one context. N agents don't multiply that work; they inher
 
 ### What goes in each agent prompt
 
-Primary, verification, and remediation agents all receive the relevant briefing packet inline + the specific work for their role. No "read these files" preamble. No "load these skills" step. The context is handed to them.
+Primary, verification, and remediation agents all receive the relevant briefing packet inline + the specific work for their role. The domain context is handed to them. Each worker still resolves and loads its assigned quality skills and selected references before acting.
 
 ### Why this is canonical, not an optimization
 
 1. **Adversarial handoff gets sharper.** Dominion, which owns the original plan contract, curates each receiver's briefing against that contract. No stage slips in its own interpretation of "what matters."
 2. **Curation needs pipeline history.** Dominion has seen the plan AND earlier stages' findings. It can hand the verifier exactly which skill rules to check against which files. It can hand the remedial agent exactly which rules to apply to which finding. A fresh agent loading skills on its own has no way to make that call.
 3. **Skill updates propagate cleanly.** Dominion re-reads skills on each run; every new briefing picks up the latest rules. No agent-side version drift.
-4. **Token efficiency compounds** — skill loads are paid once by dominion, not N times across agents.
+4. **Token efficiency compounds** — domain curation is performed once by dominion and reused; mandatory quality skill loads still occur in each worker context.
 
 ### Fallback: agent loads its own skills
 
@@ -67,7 +75,7 @@ Primary, verification, and remediation agents all receive the relevant briefing 
 
 ## When NOT to Use
 
-- Single-stream plans (just run `/stream` — dominion overhead isn't worth it)
+- For a single implementation stream, use the supporting `stream` workflow internally and preserve its two final review siblings; do not ask the user to invoke another command
 - When the user wants to review between streams
 - Plans involving risky operations that need human judgment between streams (destructive migrations, external API changes, production deployments)
 
@@ -90,7 +98,7 @@ Same cascade as `/stream` Phase 1 — check active status files, then recent pla
 
 ### Step 2: Ensure status file exists
 
-Once a plan is resolved, immediately check for its companion `.status.json`. If it exists, load it. If not, create it:
+Once a plan is resolved, immediately check for its companion `.status.json`. If it exists, load and normalize it using the installed `stream` skill's `references/status-schema.md`. If not, create it:
 
 1. Parse all stream headers matching `## Stream N:` or `## Stream N —`
 2. For each stream, extract: name, dependencies, files owned, sub-streams
@@ -104,19 +112,19 @@ Once a plan is resolved, immediately check for its companion `.status.json`. If 
    - `Mode: review` → final validation uses classic `review`
    - If absent, default to `review`
 5. Write `docs/plans/{slug}.status.json` with all streams set to `pending`, including `baselineSkills` per stream and the selected `finalValidationMode`
-6. Final validation handling depends on mode:
-   - `review` mode → auto-inject `Final Validation` stream with dependencies on ALL other stream IDs
-   - `codex` mode → auto-inject `Final Cleanup` stream with dependencies on ALL other stream IDs. After it completes, dominion stops and hands off to Codex `/verify`.
+6. Inject the two reserved sibling IDs `final` (Final Validation for review mode, Final Cleanup for codex mode) and `final-security` (Final Security Audit). Both depend on every implementation ID and neither depends on the other. Initialize the stable `reviewBaseline` before implementation. Use the installed `stream` skill's `references/status-schema.md` as the canonical migration, snapshot, evidence, and concurrency contract. Normalize legacy status idempotently without resetting progress or silently bypassing security on an old completed final stream.
 
 ### Step 3: Pre-compute briefing packets (NEW)
 
 Before spawning anything, pre-digest each stream's briefing packet so primary/verification/remediation agents can be dispatched cheaply:
 
-1. **Load declared skills into dominion's own context.** For each unique skill across all streams, load it once. Extract the enforceable rules (the "must/must not" lines and concrete anti-patterns) into a compact rule-excerpt block per skill.
+1. **Load declared skills and the automatic quality floor into dominion's own context.** For each unique skill across all streams, load it once. Extract the enforceable rules (the "must/must not" lines and concrete anti-patterns) into a compact rule-excerpt block per skill.
 2. **Read reference files.** For each file a stream will touch, identify the relevant line ranges (interfaces, call sites, schemas the stream must respect). Store these as excerpts.
 3. **Build per-stream packets** — one dict per stream containing:
    - `stream_section`: verbatim markdown of that stream's section in the plan
-   - `skill_rules`: map of `{skill_name: rule_excerpt}` for each declared skill
+   - `skill_rules`: map of `{skill_name: rule_excerpt}` for each declared and automatically routed skill
+   - `quality_skill_manifest`: actual assigned skill names, absolute installed paths, required references/subcommands, and first-step load instructions for this worker role
+   - `quality_load_evidence`: returned per-worker skill name/path, invocation or read method, loaded references, and evidence of the resulting audit (initially empty)
    - `reference_excerpts`: map of `{file_path: {line_range: text}}`
    - `cross_stream_intake`: items from upstream streams' verification findings (populated as earlier phases complete)
 
@@ -126,8 +134,8 @@ Cache these in memory for the dominion run. They are reused by primary, verifica
 
 Before spawning anything, verify:
 
-1. **Plan has a `## Parallelization` section** — if not, warn the user and offer to run the legion gate now
-2. **Plan has 2+ streams** — if single-stream, suggest `/stream` instead
+1. **Plan has a `## Parallelization` section** — if not, derive and validate the execution schedule using the relevant gate automatically
+2. **Plan has at least one implementation stream** — execute a single-stream plan through the supporting `stream` workflow internally; use full scheduling for multiple streams
 3. **Execution schedule is parseable** — the `### Execution Schedule` from the parallelization section defines the phases
 4. **No streams are currently `in_progress`** — if any are, another dominion/stream session may be active. Ask the user before proceeding.
 
@@ -138,21 +146,27 @@ Plan: docs/plans/2026-04-22-feature-overhaul.md
 Execution schedule (from parallelization section):
 
   Phase 1: Stream 1 (Foundation)              — 1 primary + 1 verifier + ≤1 remediator
-  Phase 2: Streams 2, 3, 4 (parallel)         — up to 9 concurrent agents
-  Phase 3: Streams 5, 6 (parallel)            — up to 6 concurrent agents
-  Phase 4: Final Validation / Final Cleanup   — 1 primary + 1 verifier
+  Phase 2: Streams 2, 3, 4 (parallel)         — scheduled within host capacity and reviewer reservation
+  Phase 3: Streams 5, 6 (parallel)            — scheduled within host capacity
+  Phase 4: Final review/cleanup + security    — 2 concurrent read-only reviewers, then joined remediation
 
 Per-stream agent cap: 3 (primary + verification + remediation)
   Cap may rise to 4 if dominion dispatches ONE surgical follow-up after remediation fails.
   Past that, dominion handles inline or escalates to user.
 
 Estimated: ~4-5 phases
-Proceed? [Y/n]
+Starting the validated execution schedule.
 ```
 
-Wait for user confirmation before spawning.
+Proceed after the preview in auto mode. Pause here only when the user explicitly requested an execution approval checkpoint.
 
 ---
+
+## Capacity for Independent Reviewers
+
+Honor the runtime's actual agent limit, counting the orchestrator and all live descendants. An implementation primary normally runs its own Legion waves without nesting, but Impeccable finish review and the security audit's independent candidate/final validation are required evidence-producing roles. They are explicit exceptions to that no-nesting rule and to the generic 3/4 implementation-role accounting; use the upstream bounded scope/budget, record actual agent counts, and never remove independence to meet an unrelated cap.
+
+Before dispatching any design/security-capable wave, reserve at least one free worker slot for these reviewers and schedule their bounded child roles serially within available capacity. If capacity cannot be reserved, a worker returns the exact independent-review assignment and required artifacts to Dominion, then releases its slot; Dominion schedules a fresh reviewer and resumes the implementation owner with its findings. Never launch a wave that occupies all available slots while each worker waits to spawn a child. In a four-slot runtime, the orchestrator plus two final readers leaves one independent-review slot; queue security/design child checks through that slot. If a runtime cannot support two readers plus mandatory independence, phase the independent passes sequentially and disclose the concurrency limitation. Do not manufacture an independent review when no fresh reviewer can run.
 
 ## Phase 2: Execute Phases
 
@@ -160,7 +174,9 @@ For each phase in the execution schedule:
 
 ### 2.1 Identify Eligible Streams (pipelined, not phase-barriered)
 
-Dominion does NOT wait for a whole phase to settle before starting the next. It schedules **continuously** on an eligibility check. Read the status file; a `pending` stream becomes eligible to DISPATCH ITS PRIMARY as soon as:
+**This pipeline applies only to implementation streams. Reserved `final` and `final-security` are excluded; both wait for every implementation verification/remediation/late delta to settle and use Phase 3.**
+
+Dominion does NOT wait for a whole implementation phase to settle before starting the next. It schedules **continuously** on an eligibility check. Read the status file; a `pending` stream becomes eligible to DISPATCH ITS PRIMARY as soon as:
 
 - Every dependency's **primary** has reached `completed` (its artifacts are on disk).
 
@@ -177,14 +193,20 @@ The `## Parallelization` "phases" remain the mental model for the preview and th
 
 ### 2.2 Dispatch Primary Stream Agents (Agent Tool, Background)
 
-For each eligible stream, dispatch a **background Agent-tool agent** with the pre-computed briefing packet. No subprocess, no stdio plumbing, no log-tail parsing.
+For each eligible stream, dispatch a **background Agent-tool agent** with the pre-computed briefing packet. Honor reserved reviewer capacity before dispatch. No subprocess, no stdio plumbing, no log-tail parsing.
 
-**Mechanism:** use the Agent tool with `subagent_type: "general-purpose"` and `run_in_background: true`. Dispatch ALL eligible streams in a single message (multiple Agent calls in one response) so they run concurrently.
+**Mechanism:** use Claude's Agent tool with `subagent_type: "general-purpose"` and `run_in_background: true`, or Codex's native collaboration spawn/wait tools. Preserve ownership boundaries and reserved reviewer capacity. Dispatch the eligible streams that fit in one parallel wave; queue the remainder until a slot is available.
 
 **Prompt template — Primary Stream Agent:**
 
 ```
 You are the primary agent for Stream {id} of plan `{plan_path}`.
+
+## Required first step: load your quality skills
+
+{quality_skill_manifest_with_resolved_paths}
+
+Before reviewing/editing code, load `auto-code-quality` yourself. Before any human-facing prose/report, load `auto-writing-quality` yourself. Load `auto-chat-quality` immediately and `auto-design-quality` for design work/review beyond unchanged established reuse. Use Skill on Claude or read the installed SKILL.md on Codex, then selected references relative to that directory. Follow the shared quality-routing contract and upstream adapters; no extra user setup prompts. Return actual load evidence. Parent excerpts are not a substitute. If you discover a missing load, load it and re-audit prior affected work before returning.
 
 ## Briefing Packet (read first; do not edit anything yet)
 
@@ -202,9 +224,9 @@ You are the primary agent for Stream {id} of plan `{plan_path}`.
 
 ## Coordination protocol
 
-1. Read `{status_path}`. Confirm Stream {id} is still `pending`; abort if another orchestrator claimed it.
-2. Edit `{status_path}`: set status to `in_progress` with `claimedAt: <ISO-UTC-now>`.
-3. On completion: set status to `completed` with `completedAt: <ISO-UTC-now>` and a `verification` object summarizing gate results.
+1. Read `{status_path}` and confirm dominion assigned Stream {id} to you; abort on conflicting ownership.
+2. Dominion is the sole status writer. Do not edit shared status; it has recorded your claim before dispatch.
+3. Return completion time, verification results, actual skill-load evidence, and deferrals. Dominion verifies the evidence and records completion serially.
 
 ## File ownership
 
@@ -215,13 +237,13 @@ Do NOT edit files outside this list unless the plan's cross-stream intake explic
 
 ## Execution
 
-Implement the stream's sub-tasks using TDD where applicable. If the stream has `Legion: Yes` annotation, execute the waves SEQUENTIALLY within your own turn loop (do not dispatch further sub-agents — you are already a dispatched agent). Test wave first, then impl wave, then dependent wave.
+Implement the stream's sub-tasks using TDD where applicable. If the stream has `Legion: Yes` annotation, execute the waves SEQUENTIALLY within your own turn loop (do not dispatch further implementation sub-agents; required independent design/security reviewers use the Capacity for Independent Reviewers protocol). Test wave first, then impl wave, then dependent wave.
 
 After each cluster of file edits, run `pnpm exec vitest run <touched files>` and the type checker. Fix issues before the next cluster.
 
 ## Self-audit before marking completed (mandatory)
 
-Before setting status to `completed`, walk the files you touched and re-check each declared skill's rules against your diff. Fix obvious violations now — you're the cheapest place to catch them.
+Before returning completion for dominion to record, walk the files you touched and re-check each declared skill's rules against your diff. Fix obvious violations now — you're the cheapest place to catch them.
 
 ## Verification gate (must pass before marking completed)
 
@@ -243,6 +265,7 @@ SUMMARY
       "reason": "<why>",
       "owner_suggested": "<which stream/role should handle>" }
   ]
+- skillLoads: [{ skill, resolvedPath, method: Skill|read, role, references }]
 - notes: <anything Phase 2.3.5 verification should know>
 
 No narration beyond the structured fields.
@@ -260,7 +283,7 @@ Each Agent-tool call with `run_in_background: true` notifies dominion automatica
 When a notification arrives:
 
 1. Read the agent's returned SUMMARY
-2. Read `docs/plans/{slug}.status.json` to confirm the agent actually wrote `completed`
+2. Check the returned evidence and actual artifacts, then record the stream's completion in `docs/plans/{slug}.status.json` as the single writer; leave `settledAt: null` until verification/remediation finishes
 3. Run `git diff --stat` to see what files actually changed
 4. Record the structured deferrals from the agent's return (they feed 2.4)
 5. If the completed agent was a **primary**: in the SAME response, (a) dispatch that stream's verification agent (2.3.5), AND (b) re-run the 2.1 eligibility scan and dispatch every newly-unblocked downstream primary. The just-finished stream's verification/remediation runs **concurrently** with those downstream primaries — do NOT wait for the phase, and do NOT wait for this stream's own verification before starting an artifact-only downstream.
@@ -287,6 +310,12 @@ Dispatch a **verification agent** as a fresh Agent-tool call (fresh context, new
 
 ```
 You are the verification agent for Stream {id}. Your job is adversarial: assume the stream shipped code that deviates from the plan, and find the deviations.
+
+## Required first step: load your quality skills
+
+{quality_skill_manifest_with_resolved_paths}
+
+Before reviewing/editing code, load `auto-code-quality` yourself. Before any human-facing prose/report, load `auto-writing-quality` yourself. Load `auto-chat-quality` immediately and `auto-design-quality` for design work/review beyond unchanged established reuse. Use Skill on Claude or read the installed SKILL.md on Codex, then selected references relative to that directory. Follow the shared quality-routing contract and upstream adapters; no extra user setup prompts. Return actual load evidence. Parent excerpts are not a substitute. If you discover a missing load, load it and re-audit prior affected work before returning.
 
 ## Briefing Packet
 
@@ -340,31 +369,26 @@ DEFERRAL_ASSESSMENT
     "verdict": "legitimate" | "rationalization" | "partial",
     "reasoning": "<one sentence>" }
 
+SKILL_LOADS
+- [{ skill, resolvedPath, method: Skill|read, role, references }]
+
 SUMMARY
 - blockers: N, correctness: N, quality: N
 - overall: proceed | remediate | halt
 ```
 
-### ui-ux-pro-max Artifact Verification
+### Quality Skill and Design Verification
 
-When `ui-ux-pro-max` is in the stream's required skills, the verification agent additionally checks these artifacts. Missing or empty artifacts are **BLOCKING** findings:
-
-| Artifact                                    | Check                                                                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `stream-{N}-design-search.md`               | Exists and is > 200 bytes                                                                                                  |
-| `stream-{N}-design-decisions.md`            | Exists and contains at least one `###` entry per modified `.svelte` / `.tsx` / `.jsx` / `.css` file                        |
-| `stream-{N}-checklist.md`                   | Exists and mentions all 10 Quick Reference categories by name (accessibility, touch, performance, style, layout, typography, animation, forms, navigation, charts) |
-
-If any artifact is missing or empty, add it to FINDINGS as a blocker. The stream either didn't run the design searches or didn't document its design decisions — both indicate ui-ux-pro-max was loaded but not executed.
+Check each worker's actual quality-skill load evidence and the output it shaped. Missing code-quality loading before code review/edits or writing-quality loading before prose is a blocking workflow gap: load the missed skill and re-audit the affected output before accepting completion. Impeccable design work must identify preserved project constraints, relevant loaded references/commands, and checks on the resulting surface; do not impose ui-ux search-log artifacts on auto-design-quality streams.
 
 **Acting on findings:**
 
-| Findings                               | Action                                                                                               |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Empty (nothing found)                  | Still dispatch a lightweight remediation agent with Input 3 only (free audit); then proceed         |
-| Quality items only                     | Dispatch remediation agent                                                                           |
-| Blockers or correctness issues         | Dispatch remediation agent; do NOT proceed to phase transition until remediation re-gate passes      |
-| Halt verdict (impossible plan, contract conflict) | **STOP.** Report to user with full evidence. Ask: manual cleanup / skip / cancel                     |
+| Findings | Action |
+|---|---|
+| Empty | Still dispatch lightweight remediation with Input 3 only, then settle the stream |
+| Quality items | Dispatch remediation |
+| Blockers/correctness | Dispatch remediation; do not mark the stream settled until its re-gate passes |
+| Impossible plan or contract conflict | Resolve within authorized scope if evidence supports a safe correction; otherwise report the concrete blocker and ask only for the material missing decision |
 
 ### 2.4 Remediation Agent (Three-Input Adversarial Wave)
 
@@ -379,9 +403,9 @@ Input 3 is the difference between a fix-list applier and a real QA layer. Primar
 **Guardrails on the free-form scan:**
 
 - **File scope:** only files the stream declared ownership of — never reach into other streams' files
-- **Skill scope:** only skills the stream declared — `auto-typescript` can fire if declared; `auto-accessibility` only fires if declared
+- **Skill scope:** declared domain skills plus the automatic quality floor and actual-work design/writing routing; a legacy declaration cannot exclude required quality skills
 - **Edit scope:** one violation = one minimal edit. No "while I'm here, let me refactor this function." Restraint is a feature.
-- **Escalation rule:** if the free scan finds a genuine blocker not already in 2.3.5's list (security hole, data-loss path, broken invariant), surface it as a new finding in the return and STOP. Do not silently patch. Dominion decides.
+- **Escalation rule:** if the free scan finds a blocker not already in 2.3.5's list (security hole, data-loss path, broken invariant), return its evidence and ownership needs to Dominion. Dominion routes supported in-scope fixes to the right owner automatically; ask only when a material decision, permission boundary, or genuinely unresolvable conflict remains.
 
 **Prompt template — Remediation Agent:**
 
@@ -391,7 +415,13 @@ You are remediating Stream {id}. Three input lists follow; act on all three.
 ## Scope (hard constraints)
 
 - Files: {stream_files}  (never edit outside this set)
-- Skills: {stream_skills}  (never apply rules outside this set)
+- Skills: {stream_skills_plus_quality_floor} (domain assignments plus mandatory actual-work routing)
+
+## Required first step: load your quality skills
+
+{quality_skill_manifest_with_resolved_paths}
+
+Before reviewing/editing code, load `auto-code-quality` yourself. Before any human-facing prose/report, load `auto-writing-quality` yourself. Load `auto-chat-quality` immediately and `auto-design-quality` for design work/review beyond unchanged established reuse. Use Skill on Claude or read the installed SKILL.md on Codex, then selected references relative to that directory. Follow the shared quality-routing contract and upstream adapters; no extra user setup prompts. Return actual load evidence. Parent excerpts are not a substitute. If you discover a missing load, load it and re-audit prior affected work before returning.
 
 ## Briefing Packet
 
@@ -428,6 +458,7 @@ pnpm exec vitest run {stream_test_glob}
 ## Return format (structured, < 400 words)
 
 REMEDIATION_RESULT
+- skillLoads: [{ skill, resolvedPath, method: Skill|read, role, references }]
 - fixed: [ { "input": "1|2|3", "file": "<path>", "change": "<one-line>" }, ... ]
 - skipped-with-reason: [ { "input": "1|2|3", "item": "<...>", "reason": "<...>" } ]
 - new-blockers: [ { "file": "<path>", "issue": "<...>" } ]
@@ -439,10 +470,10 @@ REMEDIATION_RESULT
 
 | Remediation return                                                    | Dominion action                                                              |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Gate: pass; no new blockers                                            | Mark stream fully complete. Proceed to phase transition.                     |
+| Gate: pass; no new blockers                                            | Set `settledAt` after checking the completed verification/remediation evidence. Proceed to the next eligibility scan.                     |
 | Gate: fail; narrow scope (1–3 files, well-understood)                  | **Dominion handles inline** using its own Read/Edit/Bash. No additional agent. |
 | Gate: fail; broad scope where inline burn would be costly              | Dispatch ONE more surgical agent with explicit, narrow prompt. Raises per-stream cap to 4. |
-| New blockers surfaced (plan-level or cross-stream)                     | **STOP. Escalate to user** with full evidence. Do not dispatch more agents.  |
+| New blockers surfaced (plan-level or cross-stream)                     | Route the finding to its owner and resolve within the existing authorized scope and bounded agent budget; escalate with evidence only if a material unresolved decision remains.  |
 
 Per-stream agent cap is **3 in the normal path** (primary + verification + remediation) and **4 at maximum** (one surgical follow-up after remediation gate fails). Past 4, dominion keeps judgment in the loop — no infinite loops, no silent budget burn.
 
@@ -451,7 +482,7 @@ Per-stream agent cap is **3 in the normal path** (primary + verification + remed
 There is no hard phase barrier. Scheduling is continuous (2.1): every time any agent finishes, re-scan for newly-eligible streams and dispatch them. A "phase" is complete only in the reporting sense — when every stream assigned to it is fully settled. Two things still matter at each settle:
 
 1. **Propagate cross-stream intake — including LATE deltas.** When an upstream's verification/remediation changes an artifact's shape AFTER a downstream already started (or finished) against the old shape, feed that delta into the downstream's remediation as an Input-2 finding ("upstream U changed X from shape A→B; reconcile"). This is the price of pipelining: the shared contract can shift late, and the mechanism that keeps it honest is routing upstream remediation deltas into downstream remediation. Do not silently drop them — a pipelined downstream that consumed a since-revised artifact is the one real failure mode this model introduces, and this step is its backstop.
-2. **Final gate.** Proceed to Phase 3 only when ALL non-final streams are `completed` AND their verification/remediation have settled.
+2. **Final gate.** Proceed to Phase 3 only when ALL implementation streams (excluding both `final` and `final-security`) are `completed` AND all verification/remediation and late deltas have settled.
 
 ### 2.6 Failure Handling
 
@@ -466,10 +497,10 @@ There is no hard phase barrier. Scheduling is continuous (2.1): every time any a
 
 **Remediation agent returns with new blockers:**
 - These indicate plan-level problems (contract conflict, impossible requirement, cross-stream gap)
-- STOP dominion. Escalate to user with full findings.
+- Investigate and route the issue to its owner within the existing scope and bounded retry policy. Ask only if a material missing decision or authorization prevents a correct fix; include the evidence and preserve completed work.
 
 **Multiple streams fail in same phase:**
-- If 2+ streams in the same phase fail verification AND remediation, pause and ask the user
+- If 2+ streams in the same phase fail verification AND remediation, investigate the shared cause in the orchestrator, fix supported in-scope issues under the existing budget, and ask only for a genuinely unresolved material decision
 - Could indicate a systemic issue (broken dependency, bad plan)
 
 ---
@@ -478,7 +509,7 @@ There is no hard phase barrier. Scheduling is continuous (2.1): every time any a
 
 Declared skills must shape each stream's output, not just get loaded and forgotten. Four enforcement depths, each catching what the previous missed:
 
-1. **Primary work — skills loaded up front** (handled by the primary agent's briefing packet). Shapes decisions during implementation.
+1. **Primary work — skills loaded up front** (mandatory worker quality loads plus the domain briefing packet). Shapes decisions during implementation.
 2. **Self-audit pass before marking completed** (part of the primary agent's contract, see template). Catches easy-to-see violations the primary introduced while focused on feature work.
 3. **Verification agent (2.3.5)** — adversarial read against plan + skills. Catches what self-audit missed.
 4. **Remediation agent (2.4) — three inputs** (deferrals + findings + free audit). Catches what verification missed AND fixes what was flagged.
@@ -487,41 +518,26 @@ Skills never sit inert. Each layer has a specific job: primary shapes design, se
 
 ---
 
-## Phase 3: Final Validation
+## Phase 3: Two Concurrent Final Streams
 
-**Phase 3 still runs even if Phase 2 finished with zero remediation work.** 2.3.5 checks stream-level correctness against plan requirements; 2.4 fixes what escaped; Phase 3 checks cross-stream integration — the 9-dimension review, full build, commit, push, and cleanup. They are complementary.
+This phase always runs, even when implementation needed no remediation. Read the installed `stream` skill's `references/status-schema.md` and use its canonical snapshot/join protocol; Phase 2 primary-completion pipelining and generic worker status rules do not apply to these reserved siblings.
 
-When all non-final streams are `completed` and verified:
+1. **Settle and prepare.** Wait for all implementation verification, remediation, and late contract deltas. Run full project checks and perform any pre-snapshot fixes through one owner. Preserve the original `reviewBaseline`, capture committed/staged/unstaged/untracked changes and context in one immutable manifest, and stop source writers.
+2. **Dispatch both readers in the same wave.** Claim `final` and `final-security` as siblings, each depending on all implementation streams. Give both the same baseline, snapshot ID, complete change manifest, and exclusive artifact roots and returned report paths. Each worker must first load its own `auto-chat-quality`, `auto-code-quality`, and `auto-writing-quality`, plus applicable design/domain skills. The security reader also loads `auto-security-quality`. Include the actual resolved skill manifest and demand load evidence in both prompts.
+3. **Review concurrently without source mutation.** `final` performs the existing classic `review` findings pass in review mode, or the broad Claude Cleanup Review in codex mode (no `codex-validation` yet). `final-security` audits the entire captured change set and adjacent trust boundaries with `auto-security-quality`. Workers can write only their assigned artifact roots (the security wrapper uses its permitted external run directory by default and returns all six-phase reports/validators); neither edits shared status, fixes code, commits, pushes, cleans up, or hands off. Functional source-mutating checks use isolated copies. Security target execution additionally requires the upstream OS-enforced sandbox; otherwise use source review and record that exact validation limit. Preserve security independent fresh-agent checks and use the capacity reservation/broker above. If parallel workers are unavailable, perform both independent passes sequentially under the same barrier and record that limitation.
+4. **Join and fix.** Wait for both reports. Validate their skill loads, coverage, and snapshot fingerprints. Present combined findings, then assign one remediation owner to apply supported authorized fixes after readers have finished. No concurrent reviewer-fixer races. Preserve explicit review-only limits and escalate genuine blockers under the existing policy.
+5. **Refresh both gates.** Re-run affected checks, capture a new snapshot, and obtain fresh evidence from both reviewers on the fixes and regression surface. Missing/incomplete audits or stale snapshots cannot pass. Dominion alone marks both streams completed and `finalGate.phase: passed` once both reports pass on the same current snapshot.
+6. **Finalize once.** In `review` mode, one finalization owner follows the existing authorized commit/push/plan+status cleanup flow, preserving unrelated user work and retaining audit reports. In `codex` mode, preserve the working tree, plan, status, baseline, and both reports; retain the existing Codex `/verify` handoff. If already running in Codex with authority to validate, continue `/verify` directly. Otherwise report the handoff honestly. Never claim the Claude cleanup or security report replaces Codex validation.
 
-**If final validation mode is `review`:**
+A later mutation invalidates evidence for affected scope and requires fresh checks/reviews before commit, push, cleanup, or Codex handoff. Do not replay a recorded commit/push after resume. The final pair has two initial reviewers; remediation and re-review use the existing bounded follow-up policy, not a separate unbounded audit loop.
 
-1. Dispatch a primary agent for the Final Validation stream (same Agent-tool mechanism as Phase 2)
-2. Dispatch a verification agent after it completes
-3. Optionally dispatch a remediation agent if verification flags anything
-4. The Final Validation stream handles: full verification, `/review` pass, git commit/push, plan+status cleanup
-
-**If final validation mode is `codex`:**
-
-1. Dispatch a primary agent for the Final Cleanup stream
-2. Dispatch a verification agent after it completes
-3. The Final Cleanup stream handles: full verification, broad cleanup, obvious improvement passes — but does NOT run `codex-validation`, commit, push, or delete plan/status artifacts
-4. After Final Cleanup completes, stop orchestration and hand off to Codex `/verify`
-
-Use language like:
+Example Codex handoff:
 
 ```
-Implementation and Claude cleanup streams complete.
-
-Final validation mode is `codex`, so dominion will not spawn a Claude
-Codex-validation stream.
-
-Next step:
-  Open Codex in the same repo and run `/verify`
-
-Artifacts preserved for Codex:
-  - docs/plans/{slug}.md
-  - docs/plans/{slug}.status.json
-  - docs/plans/.dominion-logs/
+Implementation, Final Cleanup, and Final Security Audit are complete.
+Both final reports pass on snapshot {snapshotId}; artifacts are preserved.
+Final validation mode: codex. Codex validation has not run yet.
+Next step when a Codex runtime is unavailable here: open Codex and run /verify.
 ```
 
 ---
@@ -534,7 +550,7 @@ Artifacts preserved for Codex:
 /dominion complete ✓
 
 Plan: docs/plans/2026-04-22-feature-overhaul.md
-Streams: 7/7 completed
+Streams: 8/8 completed (6 implementation + 2 final siblings)
 Agents dispatched: 18 (avg 2.6/stream)
 Duration: 34 minutes (vs ~2h sequential estimate)
 Commit: abc1234
@@ -544,7 +560,7 @@ Phase breakdown:
   Phase 1 (Stream 1):          6 min   (primary + verification, no remediation needed)
   Phase 2 (Streams 2,3,4):    12 min   (parallel; Stream 2 needed remediation)
   Phase 3 (Streams 5,6):       9 min   (parallel; both clean)
-  Phase 4 (Final Validation):  7 min
+  Phase 4 (Review + Security): 7 min (concurrent reads, joined remediation)
 
 Plan and status files cleaned up by Final Validation.
 Briefing packets and logs: docs/plans/.dominion-logs/
@@ -558,6 +574,8 @@ Briefing packets and logs: docs/plans/.dominion-logs/
 Plan: docs/plans/2026-04-22-feature-overhaul.md
 Implementation streams: 6/6 completed
 Final Cleanup: completed
+Final Security Audit: completed
+Final gate: both pass on {snapshotId}
 Final validation mode: codex
 
 No Claude Codex-validation stream was spawned.
@@ -578,7 +596,7 @@ Preserved for Codex:
 
 Completed: Streams 1, 2, 4 (3/7)
 Failed: Stream 3 (see findings below)
-Blocked: Streams 5, 6, Final Validation
+Blocked: Streams 5, 6, Final Validation, Final Security Audit
 
 Findings:
   - src/lib/server/auth/sessions.ts:142 — primary shipped plaintext
@@ -588,9 +606,8 @@ Findings:
 Status file preserved: docs/plans/2026-04-22-feature-overhaul.status.json
 Briefings + agent returns: docs/plans/.dominion-logs/
 
-You can:
-  1. Fix Stream 3 manually, then run /dominion to resume
-  2. Run /stream to take over Stream 3 interactively
+Needed to continue: [specific missing decision or external-state change]
+After it is resolved, /dominion resumes from the preserved status.
 ```
 
 ---
@@ -607,9 +624,9 @@ docs/plans/.dominion-logs/
   return-stream-1-primary.md      # What the primary agent returned
   return-stream-1-verify.md       # What the verification agent returned
   return-stream-1-remediate.md    # What the remediation agent returned (if dispatched)
-  stream-{N}-design-search.md     # (ui-ux-pro-max artifact, if applicable)
-  stream-{N}-design-decisions.md  # (ui-ux-pro-max artifact, if applicable)
-  stream-{N}-checklist.md         # (ui-ux-pro-max artifact, if applicable)
+  {slug}/final/{snapshotId}/review.md    # independent review/cleanup report
+  {slug}/final/{snapshotId}/security.md  # coordinator summary linking external security run artifacts
+  {slug}/final/{snapshotId}/manifest.json # shared immutable input manifest
 ```
 
 Create this directory at dominion start. Dominion writes briefing packets and collects agent returns here. These are the audit trail — they persist until the user deletes them manually.
@@ -629,28 +646,9 @@ Artifacts are NOT deleted by Final Validation (unlike the plan and status files)
 
 ## Status File as Coordination Layer
 
-`/dominion` and all dispatched agents share the status file as their coordination mechanism:
+Dominion is the single status writer. It records claims before dispatch, checks actual worker artifacts and returned evidence, and serializes completion/verification/final-gate updates. Workers read status and return data; they never overwrite shared JSON. Exclusive artifact directories prevent sibling write collisions; security workers retain upstream external output and scratch isolation.
 
-```
-/dominion (orchestrator)
-  reads status.json to confirm agent completion
-  reads/propagates cross-stream intake
-  writes: nothing (read-only coordinator)
-
-Primary agent (background)
-  reads status.json → confirms claim → writes in_progress
-  completes → writes completed
-
-Verification agent (background)
-  reads status.json (read-only) — doesn't modify status
-  returns findings to dominion
-
-Remediation agent (background)
-  reads status.json (read-only)
-  may update the stream's `verification` sub-object if it patches issues
-```
-
-The status file's optimistic concurrency (read → check → write) prevents double-claiming.
+Use the installed `stream` skill's `references/status-schema.md` Concurrency rules for atomic updates and manual-session locks. Read/check/write without a lock is not safe even when sessions target different JSON keys. The finalization owner is unique and cannot act before both snapshot-bound reports pass.
 
 ---
 
@@ -660,7 +658,7 @@ The status file's optimistic concurrency (read → check → write) prevents dou
 
 1. Status file preserves all progress
 2. Running `/dominion` again reads the status file
-3. Already-completed streams are skipped
+3. Already-completed implementation streams are skipped; normalize legacy final state and revalidate both final reports against the current snapshot before trusting completion
 4. `in_progress` streams are flagged (user decides: wait or take over)
 5. Pending streams with met dependencies are re-dispatched
 6. Dominion re-builds briefing packets on resume — they're not persisted as source-of-truth, just as audit artifacts
@@ -688,12 +686,13 @@ Phase 3 (parallel, after Streams 2-4):
   → Stream 5: Integration — legion (T:2 → I:2 → D:2) — run sequentially within primary
   → Stream 6: Polish — solo
 
-Phase 4 (after all):
-  → Final Validation — verification + selected validation mode + commit
+Phase 4 (after all implementation has settled):
+  → Final Validation / Cleanup + Final Security Audit — concurrent read-only passes
+  → Join → one remediation owner → fresh passing reports → authorized finalization
 
-Normal-path agent count: 14 (2 per stream × 7)
-Worst-plausible-case: 28 (4 per stream × 7)
-Max concurrent: 3 streams × 3 agents = 9 agents simultaneously
+Agent count: implementation primary/verify/remediate roles + 2 final readers
+Follow-up budget: bounded remediation/re-review under the existing cap
+Max concurrent: bounded by the host limit, with a reserved/brokered independent-review slot
 ```
 
 ---
@@ -717,21 +716,21 @@ If forced to use headless, ensure the spawned `/stream` uses `pnpm exec vitest r
 
 ## Rules
 
-1. **ALWAYS** show the execution preview and get user confirmation before dispatching
-2. **ALWAYS** pre-compute briefing packets before dispatching any agent — no "read these files, load these skills" preambles in agent prompts
-3. **ALWAYS** dispatch via Agent tool with `run_in_background: true` — never use headless `claude -p` by default
-4. **ALWAYS** dispatch all eligible primary agents for a phase in a single message (parallel execution)
+1. **ALWAYS** show the execution preview and proceed in auto mode; require a routine confirmation only when the user explicitly requested that checkpoint
+2. **ALWAYS** pre-compute domain briefing packets and include mandatory first-step worker quality skill loads with resolved paths and returned evidence
+3. **ALWAYS** use the runtime's native agent facility (Claude Agent with `run_in_background: true`; Codex collaboration agents). Never use headless `claude -p` by default
+4. Dispatch eligible primaries concurrently within actual host capacity; keep required reviewer slots free and queue the rest
 5. **ALWAYS** run verification (2.3.5) for EVERY stream — no trusted streams
 6. **ALWAYS** run remediation (2.4) if verification finds anything, even quality-only
 7. **ALWAYS** run a lightweight remediation with Input 3 (free audit) even when verification finds nothing — it's Layer 4 insurance
-8. **NEVER** modify the status file from dominion's own context; only read
-9. **NEVER** dispatch more than 3 agents per stream in the normal path; 4 maximum after a failed remediation gate; past that, handle inline or escalate
+8. **ALWAYS** serialize shared status writes in dominion; workers return data and write only inside exclusive artifact roots
+9. **NEVER** exceed 3 implementation-role agents per stream normally, 4 after a failed re-gate; required fresh design/security evidence roles use the explicit capacity/budget protocol and are separately accounted
 10. **NEVER** pipe `pnpm test` output through `| tail` / `| head` / `| grep` in agent prompts — the pipe hangs on leaky teardown
 11. **ALWAYS** load `auto-web-validation` into dominion's own context before any web research or vendor/library lookup
-12. In `codex` final validation mode, run the Claude `Final Cleanup` stream first (primary + verify + optional remediation), then hand off to Codex `/verify`
+12. In either final mode, run `final` and `final-security` together, join/fix/recheck, and require both to pass on the current snapshot. Codex mode then preserves artifacts for `/verify`
 13. Trust the Agent tool's completion notification; do not sleep/poll for agent completion
 14. Briefing packet artifacts persist after cleanup; they're the audit trail
-15. **PIPELINE on primary completion, not on phase settle.** The moment a primary lands, dispatch its verifier AND every newly-unblocked downstream primary in the same beat. Do not wait for a stream's own verification/remediation before starting an artifact-only downstream. The bet: most work is correct first-pass.
+15. **PIPELINE implementation only on primary completion, not on phase settle.** Both reserved final streams wait for full implementation settle. The moment a primary lands, dispatch its verifier AND every newly-unblocked downstream primary in the same beat. Do not wait for a stream's own verification/remediation before starting an artifact-only downstream. The bet: most work is correct first-pass.
 16. **Do NOT gate a downstream on an upstream's verification/remediation — even on a shared file.** Overlap is safe: verifiers are read-only, and file ownership passes to the downstream on dispatch (an upstream remediator that finds an issue in a handed-off file REPORTS it downstream via 2.5, it does not edit it). The only hard serialization is **two PRIMARY agents editing the same file in the same wave** — the plan's file-ownership matrix sequences those. Over-gating on "shared file + still settling" throws away the pipeline win; don't.
 17. **Route late upstream remediation deltas into the affected downstream's remediation** (Input 2). Pipelining trades a possible late contract shift for wall-clock; this is how that shift gets reconciled instead of lost.
 
@@ -743,7 +742,7 @@ If forced to use headless, ensure the spawned `/stream` uses `pnpm exec vitest r
 | "The primary agent's summary looks clean, I can skip verification"                 | Self-reports are unreliable. 6/7 Sonnet streams shipped material deviations while reporting "completed." Always run 2.3.5.                                                                                    |
 | "Verification found nothing, I can skip remediation"                               | Run the lightweight Input-3-only remediation anyway. It's cheap and catches what both the primary's self-audit and the verifier missed. Three layers, not two.                                                |
 | "Remediation failed — I'll dispatch another remediation agent"                     | Don't. At that point dominion has strictly more information than a fresh remediator. Handle inline, dispatch ONE surgical follow-up, or escalate. Never dispatch a second generic remediation.                |
-| "I should make each agent load its own skills for clean context separation"        | That's the old model. Agent context is fresh but the SKILLS are dominion's responsibility — precomputed, handed out as rule excerpts. Makes curation against the plan contract possible.                      |
+| "I should make each agent load its own skills for clean context separation"        | Domain context is precomputed, but every worker must actually load its applicable quality adapters and selected references. Parent excerpts alone do not apply Ponytail or Humanizer in the worker context.                      |
 | "I'll poll the status file to track agent progress"                                | Don't. Agent-tool `run_in_background: true` notifies automatically. Polling wastes cycles and breaks cache efficiency.                                                                                        |
 | "This stream is taking too long, I'll kill the agent"                              | Trust the agent. If it's still running, it's still working. Agent tool notifies on completion — you'll hear when it's done.                                                                                   |
 | "I'll let the primary self-certify — verification is just overhead"                | Verification catches the things the primary can't see (it's too close to its own work). The independent fresh-context read is the point.                                                                     |

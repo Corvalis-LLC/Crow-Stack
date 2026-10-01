@@ -64,7 +64,7 @@ Revise the original plan incorporating:
 
 ## Presentation Template
 
-Present the amended plan and options directly without using AskUserQuestion:
+In summon/dominion auto mode, apply supported amendments and return to the calling workflow. Use the following options only when the user explicitly requested interactive checkpoints:
 
 ```markdown
 ## Triumvirate Review Complete

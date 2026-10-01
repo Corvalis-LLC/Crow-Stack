@@ -5,6 +5,8 @@ description: "Internationalization discipline: ICU pluralization, locale-aware f
 
 # auto-i18n — Internationalization Discipline
 
+Apply translation architecture rules when the project already supports localization or the request includes it. Preserve an existing message catalog and locale-aware behavior. A narrowly scoped single-language copy or formatter fix does not authorize adding a translation framework, externalizing the whole product, or changing the requested wording. Use existing/native formatting facilities where they meet the current requirement; record future locale work only when relevant.
+
 You default to English-only string handling: manual if/else pluralization, concatenated translated fragments, hardcoded date/number formats, and zero RTL awareness. These patterns break the moment a second locale appears.
 
 ## Rule 1: ICU/Fluent Pluralization — Never Manual If/Else
@@ -193,7 +195,7 @@ Your pattern: hardcoded strings mixed into components.
 <p>No results found</p>
 ```
 
-Every user-visible string must go through the translation function, even if you only support one language today. Retrofitting i18n is 10x harder than designing for it.
+In a localized project, route user-visible strings through the existing translation function, including the initial locale. For a project without localization, introduce message catalogs when localization is in scope; do not add that architecture solely for a small copy edit.
 
 **Correct:**
 ```svelte

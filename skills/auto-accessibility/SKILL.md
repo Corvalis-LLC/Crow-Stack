@@ -24,16 +24,19 @@ WCAG 2.2 AA requires 24x24px minimum. Apple/Google recommend 44x44px. Always use
 
 ## Media queries you skip
 
-Always include these on interactive components:
+For components with motion, provide an intentional reduced-motion treatment that preserves state feedback. Keep forced-colors focus visibility:
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .animated-panel { animation: none; transform: none; }
+  .status-indicator { transition: opacity 120ms ease; }
 }
 @media (forced-colors: active) {
   :focus-visible { outline: 3px solid CanvasText; }
 }
 ```
+
+Apply these selectors to the actual component; do not paste them as unused rules. Reduce spatial movement and long sequences while retaining useful state changes. Avoid global near-zero duration overrides, which can break event-driven behavior and remove necessary feedback. Follow the motion playbook in `auto-design-quality` for the chosen design.
 
 ## Focus management
 
