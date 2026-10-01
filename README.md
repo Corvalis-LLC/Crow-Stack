@@ -4,12 +4,14 @@ Corvalis Skills is built for the lazy developer who cares about what ships and h
 
 Describe the job. The agent figures out which skills apply, splits up work where it helps, checks the results, and fixes issues the reviews confirm. You shouldn't have to remind every subagent to keep the code simple or run a separate command to make the UI copy readable.
 
+We follow a **minimum context window principle**: give each worker bee the distilled information it needs for its job. Summon turns repo exploration and decisions into a saved plan. Dominion prepares focused briefings with the worker's assignment, relevant source excerpts, domain rules, and dependency details. Workers still load their required quality skills and read more source when needed. The aim is to avoid bloated context windows and the loss of focus that can degrade work as a long session fills up.
+
 | Start here | What happens |
 | --- | --- |
 | `/summon` | Give it an idea, bug, design change, or security concern. It picks the right path and gets to work. |
 | `/dominion` | Give it an existing plan. It coordinates the work, verification, and fixes. |
 
-Most sessions start with `/summon`. When a job needs coordinated implementation, Summon writes and checks a plan, then starts Dominion automatically. You only need to call `/dominion` yourself when you're starting from a plan that already exists.
+Most sessions start with a short request to `/summon`:
 
 ```text
 /summon Add a settings page
@@ -17,11 +19,19 @@ Most sessions start with `/summon`. When a job needs coordinated implementation,
 
 Summon reads the repo to figure out where the page belongs, which components and design patterns to reuse, and which tools the project uses. You can give it a short request like this and let it carry the work through implementation and checks.
 
+For planned work, the usual flow is:
+
+```text
+/summon → /clear → /dominion → done
+```
+
+Have Summon stop after saving the plan for this handoff. Clear the conversation, then let Dominion pick up the saved plan in a fresh context. The decisions survive in the repo; the planning conversation doesn't have to fill the execution window. Dominion can find the plan automatically, or you can name one:
+
 ```text
 /dominion docs/plans/settings-page.md
 ```
 
-Auto mode is the default. Routine decisions and review fixes keep moving without an approval round. You can still ask for a plan only, a review only, or a more interactive session. It asks when essential intent is missing or an actual permission boundary needs your attention.
+Auto mode is the default. Summon can also continue straight into Dominion in the same session. Routine decisions and review fixes keep moving without an approval round. You can still ask for a plan only, a review only, or a more interactive session. It asks when essential intent is missing or an actual permission boundary needs your attention.
 
 ## Install once
 
